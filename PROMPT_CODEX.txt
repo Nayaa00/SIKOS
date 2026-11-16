@@ -1,0 +1,11 @@
+Bantu saya menjalankan dan menyelesaikan SIKOS sesuai PRODUCT REQUIREMENTS DOCUMENT.docx. Baca README.md, docs/PRD_CHECKLIST.md, docs/ERD.md, kode, dan pengujian terlebih dahulu.
+
+Stack wajib dari PRD: Python FastAPI, MySQL/InnoDB, HTML/CSS/Bootstrap/JavaScript, Pandas/openpyxl, Chart.js. Jangan mengembalikan stack ke Django atau MongoDB. Proyek praktikum lama terpisah.
+
+Fitur: login email/password dengan admin dan anggota; CRUD anggota dengan nomor unik; kategori; produk; stok masuk/keluar dan audit; impor Excel dengan ringkasan berhasil/gagal; katalog; keranjang; pesanan; transaksi; analisis terlaris berdasarkan unit; stok tertinggi; laporan harian/mingguan/bulanan/tahunan.
+
+Invarian: stok tidak berkurang saat baru memesan. Kurangi satu kali saat admin mengonfirmasi. Pembatalan pesanan yang terkonfirmasi mengembalikan stok satu kali dan membatalkan transaksi dari analisis. Konfirmasi harus atomik untuk seluruh barang dan tidak membuat stok negatif. Status hanya Menunggu konfirmasi, Dikonfirmasi, Selesai, Dibatalkan. Snapshot harga saat pesan tetap dipertahankan.
+
+Bantu setup di Windows dengan venv baru dan terminal CMD (path saya mengandung spasi dan kurung siku). Saya mengisi .env sendiri. Jangan tampilkan atau masukkan password ke source/git. Jangan mengubah database proyek lain. Jalankan init-db, bantu membuat admin interaktif, dan jalankan test. Lakukan smoke test UI dan tes MySQL setelah layanan tersedia. Perbaiki kegagalan dalam lingkup PRD. Jangan menyatakan tes MySQL lulus jika hanya tes SQLite yang dijalankan.
+
+File Excel lama belum dilampirkan. Jika tersedia, inspeksi header dan contoh baris, lalu buat pemetaan ke template produk tanpa menimpa stok berjalan. Fokus fitur PRD. Jangan menambahkan pembayaran gateway, aplikasi mobile, multi-cabang, atau Hadoop/Spark kecuali saya meminta.
