@@ -162,7 +162,7 @@ def test_login_csrf_role_boundaries(web):
 
 def test_all_admin_pages(web):
     signin(web,True)
-    for url in ['/','/anggota','/anggota/tambah','/kategori','/produk','/produk/tambah','/produk/1/edit','/stok','/impor','/katalog','/keranjang','/pesanan','/transaksi','/laporan']:
+    for url in ['/','/anggota','/anggota/tambah','/kategori','/produk','/produk/tambah','/produk/1/edit','/stok','/impor','/pesanan','/transaksi','/laporan']:
         result=web.get(url)
         assert result.status_code==200,(url,result.text)
 
@@ -192,9 +192,9 @@ def test_admin_crud_http(web,store):
     csrf=signin(web,True)
     response=web.post('/anggota/simpan',data={'csrf':csrf,'nomor':'AG003','nama':'Baru','email':'baru@example.com','telepon':'0812','alamat':'Bandung','password':'password-baru','active':'on'})
     assert response.status_code==200 and 'AG003' in response.text
-    response=web.post('/kategori/simpan',data={'csrf':csrf,'nama':'Gula','active':'on'})
+    db=store[0];category=Category(nama='Gula');db.add(category);db.commit()
+    response=web.post('/kategori/simpan',data={'csrf':csrf,'id':category.id,'active':'on'})
     assert response.status_code==200
-    db=store[0];category=db.scalar(select(Category).where(Category.nama=='Gula'))
     response=web.post('/produk/simpan',data={'csrf':csrf,'kode':'G001','nama':'Gula 1kg','category_id':category.id,'harga':16000,'stok':7,'satuan':'pak','active':'on'})
     assert response.status_code==200 and 'G001' in response.text
     product=db.scalar(select(Product).where(Product.kode=='G001'))
@@ -277,3 +277,57 @@ def test_order_status_constraint(store):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_admin_cannot_access_buyer_pages_or_create_orders(web,store):
+    from app.models import Order
+    csrf=signin(web,True)
+    response=web.get('/produk')
+    assert 'href="/katalog"' not in response.text
+    assert 'href="/keranjang"' not in response.text
+    assert 'href="/pesanan"' in response.text
+    for url in ('/katalog','/keranjang'):
+        assert web.get(url).status_code==403
+    for url,data in (
+        ('/keranjang/tambah',{'product_id':1,'qty':1}),
+        ('/keranjang/ubah',{'qty_1':1}),
+        ('/pesanan/buat',{'token':'a'*32}),
+    ):
+        assert web.post(url,data={'csrf':csrf,**data}).status_code==403
+    db=store[0];db.expire_all()
+    assert db.scalar(select(func.count()).select_from(Order))==0
+    assert db.get(Product,1).stok==10
+    signin(web)
+    member_page=web.get('/katalog')
+    assert member_page.status_code==200
+    assert 'href="/katalog"' in member_page.text
+    assert 'href="/keranjang"' in member_page.text
+    assert 'href="/produk"' not in member_page.text
+    assert web.get('/keranjang').status_code==200
+
+
+def test_categories_fixed_names_status_and_stale_add_form(web,store):
+    db,_,_,_,product,_,_=store
+    category=product.category
+    original_name=category.nama
+    count=db.scalar(select(func.count()).select_from(Category))
+    csrf=signin(web,True)
+    response=web.get('/kategori')
+    assert '<select' not in response.text and 'Tambah kategori' not in response.text
+    response=web.post('/kategori/simpan',data={'csrf':csrf,'nama':original_name,'active':'on'})
+    assert response.status_code==200
+    assert '/kategori'==response.url.path
+    assert 'Kategori utama sudah tersedia' in response.text
+    assert 'href="/produk"' in response.text
+    assert web.get('/produk').status_code==200
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(Category))==count
+    response=web.post('/kategori/simpan',data={'csrf':csrf,'id':category.id,'nama':'Nama palsu'})
+    assert response.status_code==200
+    db.expire_all()
+    assert category.nama==original_name and not category.active
+    response=web.post('/kategori/simpan',data={'csrf':csrf,'id':category.id,'active':'on'})
+    assert response.status_code==200
+    db.expire_all()
+    assert category.nama==original_name and category.active
+    assert db.get(Product,product.id).stok==10

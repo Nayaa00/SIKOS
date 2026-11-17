@@ -39,3 +39,15 @@ Acuan: PRODUCT REQUIREMENTS DOCUMENT.docx yang dilampirkan pengguna. Isi identik
 Pengujian otomatis 22 skenario SQLite (ditambah 2 skenario integrasi MySQL opsional) memakai SQLite temporer dengan tabel SQLAlchemy yang sama. Cakupan mencakup service bisnis, rollback, status, idempotensi, impor parsial, akun, role, CSRF, halaman, keranjang, transaksi, batas periode dan ekspor.
 
 MariaDB XAMPP 10.4.32 telah diuji dengan dua koneksi dan smoke test navigasi/empty state browser telah dilakukan. MySQL 8 nyata belum diuji. Lihat docs/HASIL_UJI.md untuk hasil dan batas verifikasi. Tidak ada kredensial atau data pribadi yang dibundel.
+
+
+## Akses pembeli dan pengaturan kategori
+
+Katalog, Keranjang dan pembuatan pesanan khusus anggota/pembeli. Menu tersebut
+tidak ditampilkan kepada admin dan akses langsung GET/POST ditolak 403. Admin
+tetap mengelola barang melalui Produk dan memproses Pesanan/Transaksi/Laporan.
+
+Halaman Kategori menampilkan nama sebagai teks biasa. Form tambah dan pengubahan
+nama dihapus; admin hanya mengatur status aktif/nonaktif lalu Simpan. Request dari
+form Tambah versi lama diarahkan kembali dengan pemberitahuan tanpa membuat data
+duplikat. Dropdown pemilihan kategori di form produk tetap tersedia.

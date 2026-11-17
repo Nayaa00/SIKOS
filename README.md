@@ -147,3 +147,15 @@ python -m pytest tests/test_mysql.py -q
 Tanpa URL tersebut tes integrasi dilewati, bukan dinyatakan lulus. Tes tidak
 menjatuhkan tabel/database; hanya membuat tabel yang belum ada dan membersihkan
 baris fixture miliknya. Database uji harus sudah dibuat lebih dahulu.
+
+
+## Akses pembeli dan pengaturan kategori
+
+Katalog, Keranjang dan pembuatan pesanan khusus anggota/pembeli. Menu tersebut
+tidak ditampilkan kepada admin dan akses langsung GET/POST ditolak 403. Admin
+tetap mengelola barang melalui Produk dan memproses Pesanan/Transaksi/Laporan.
+
+Halaman Kategori menampilkan nama sebagai teks biasa. Form tambah dan pengubahan
+nama dihapus; admin hanya mengatur status aktif/nonaktif lalu Simpan. Request dari
+form Tambah versi lama diarahkan kembali dengan pemberitahuan tanpa membuat data
+duplikat. Dropdown pemilihan kategori di form produk tetap tersedia.
