@@ -36,9 +36,7 @@ Acuan: PRODUCT REQUIREMENTS DOCUMENT.docx yang dilampirkan pengguna. Isi identik
 
 ## Verifikasi dan keterbatasan
 
-Pengujian otomatis 22 skenario SQLite (ditambah 2 skenario integrasi MySQL opsional) memakai SQLite temporer dengan tabel SQLAlchemy yang sama. Cakupan mencakup service bisnis, rollback, status, idempotensi, impor parsial, akun, role, CSRF, halaman, keranjang, transaksi, batas periode dan ekspor.
-
-MariaDB XAMPP 10.4.32 telah diuji dengan dua koneksi dan smoke test navigasi/empty state browser telah dilakukan. MySQL 8 nyata belum diuji. Lihat docs/HASIL_UJI.md untuk hasil dan batas verifikasi. Tidak ada kredensial atau data pribadi yang dibundel.
+Verifikasi terbaru 17 November 2026: 64 tes lulus (59 SQLite/HTTP dan 5 integrasi MariaDB XAMPP 10.4.32). Mencakup hak akses, privasi transaksi, validasi form, stok, snapshot, impor, laporan, pembatalan dan konkurensi nyata. MySQL 8 belum diuji. Lihat docs/HASIL_UJI.md untuk batas smoke test browser. Tidak ada kredensial akun nyata yang dibundel.
 
 
 ## Label dan kategori produk
@@ -153,3 +151,22 @@ atau `python -m app.cli migrate-payments` untuk database lama; migrasi hanya men
 Pembayaran tidak mengubah stok atau snapshot. Pembatalan pesanan terkonfirmasi tetap membuat
 transaksi tidak valid untuk analisis dan mengembalikan stok tepat sekali. Catatan uang diterima
 historis tetap ada; belum tersedia pencatatan pengembalian uang.
+
+
+## Penyelesaian fitur anggota (17 November 2026)
+
+| Bagian | Hasil |
+| --- | --- |
+| Tugas 1: akun/katalog/dashboard | Daftar dengan error inline, input non-password dipertahankan, email duplikat spesifik, dashboard jumlah pesanan pribadi, navigasi aktif |
+| Tugas 2: keranjang | Foto, ubah/hapus, total langsung, checkout memakai jumlah terbaru, validasi seluruh barang, token anti-duplikasi; smoke tambah/ubah/hapus berhasil |
+| Tugas 3: pesanan/transaksi | Pesanan Saya dengan filter status dan 20 entri/halaman; pembatalan mandiri hanya Menunggu konfirmasi; Transaksi Saya privat, snapshot, status, nominal tunai/kembalian dan riwayat void |
+| Profil | Nomor anggota/role hanya dilihat, edit nama/email/telepon/alamat, password lama dan konfirmasi untuk perubahan password; input non-password tetap pada error |
+| Kinerja | Kategori produk dan rincian riwayat dimuat bersama untuk menghindari query per kartu/baris; query keranjang mengambil semua produk sekaligus |
+
+Pembatalan anggota dan konfirmasi admin mengunci baris pesanan yang sama, sehingga hanya
+status terbaru yang dipakai. Pembayaran/pembatalan mengunci order kemudian sale dengan
+urutan konsisten. Stok, snapshot dan empat status PRD tetap dipertahankan.
+
+Batas saat ini: pengembalian uang belum dicatat sebagai proses terpisah. Transaksi dibatalkan
+yang sebelumnya dibayar menampilkan instruksi menghubungi koperasi, sambil mempertahankan
+catatan pembayaran historis. Ini tidak mengubah aturan stok/analisis dan tidak menambah gateway.

@@ -1,271 +1,16 @@
  {% extends "base.html" %} {% block content %}
 
-<style>
-    /* =================================
-   SIKOS PROFILE PAGE
-================================= */
 
-    .profile-page {
-        width: 100%;
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 32px 28px 50px;
-        color: #203d34;
-        font-family: inherit;
-    }
-
-    .profile-page * {
-        box-sizing: border-box;
-    }
-
-    .profile-page .profile-heading {
-        margin-bottom: 25px;
-    }
-
-    .profile-page .profile-heading h2 {
-        font-size: 25px;
-        font-weight: 750;
-        color: #173f35;
-        margin: 0 0 7px;
-    }
-
-    .profile-page .profile-heading p {
-        font-size: 14px;
-        color: #7b897f;
-        margin: 0;
-    }
-    /* MAIN CARD */
-
-    .profile-page .profile-card {
-        display: block;
-        width: 100%;
-        padding: 32px;
-        background: #ffffff;
-        border: 1px solid #e5ebe4;
-        border-radius: 16px;
-        box-shadow: 0 6px 24px rgba(25, 55, 40, 0.045);
-    }
-    /* USER INFORMATION */
-
-    .profile-page .profile-user {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding-bottom: 26px;
-        margin-bottom: 28px;
-        border-bottom: 1px solid #edf0e9;
-    }
-
-    .profile-page .profile-avatar {
-        flex: 0 0 58px;
-        width: 58px;
-        height: 58px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: #e8eddf;
-        color: #166a56;
-        font-size: 23px;
-        font-weight: 750;
-    }
-
-    .profile-page .profile-user-info h3 {
-        margin: 0 0 5px;
-        font-size: 17px;
-        font-weight: 700;
-        color: #263d33;
-    }
-
-    .profile-page .profile-user-info span {
-        font-size: 12px;
-        color: #166a56;
-    }
-    /* SECTION */
-
-    .profile-page .profile-section {
-        display: block;
-        width: 100%;
-    }
-
-    .profile-page .profile-section-heading {
-        margin-bottom: 23px;
-    }
-
-    .profile-page .profile-section-heading h3 {
-        font-size: 17px;
-        font-weight: 750;
-        color: #263d33;
-        margin: 0 0 6px;
-    }
-
-    .profile-page .profile-section-heading p {
-        font-size: 13px;
-        color: #89948c;
-        margin: 0;
-    }
-    /* FORM */
-
-    .profile-page .profile-form {
-        display: flex;
-        flex-direction: column;
-        gap: 19px;
-        width: 100%;
-    }
-
-    .profile-page .profile-field {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-        min-width: 0;
-        margin: 0;
-    }
-
-    .profile-page .profile-field label {
-        display: block;
-        width: 100%;
-        margin: 0 0 8px;
-        color: #405349;
-        font-size: 13px;
-        font-weight: 650;
-    }
-
-    .profile-page .profile-field input {
-        display: block;
-        width: 100%;
-        height: 46px;
-        min-height: 46px;
-        margin: 0;
-        padding: 0 14px;
-        border: 1px solid #dce5dc;
-        border-radius: 9px;
-        outline: none;
-        background: #ffffff;
-        color: #293c32;
-        font-family: inherit;
-        font-size: 14px;
-        box-shadow: none;
-        transition: border-color .2s, box-shadow .2s;
-    }
-
-    .profile-page .profile-field input:focus {
-        border-color: #166a56;
-        box-shadow: 0 0 0 3px rgba(22, 106, 86, .09);
-    }
-
-    .profile-page .profile-field input:disabled {
-        background: #f2f5f0;
-        color: #849087;
-        cursor: not-allowed;
-    }
-
-    .profile-page .profile-field small {
-        display: block;
-        margin-top: 7px;
-        color: #89948c;
-        font-size: 11px;
-    }
-    /* DIVIDER */
-
-    .profile-page .profile-divider {
-        width: 100%;
-        height: 1px;
-        background: #edf0e9;
-        margin: 30px 0;
-    }
-    /* ACTION BUTTONS */
-
-    .profile-page .profile-actions {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 11px;
-        margin-top: 30px;
-        padding-top: 23px;
-        border-top: 1px solid #edf0e9;
-    }
-
-    .profile-page .profile-actions button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 43px;
-        padding: 0 21px;
-        border: none;
-        border-radius: 8px;
-        font-family: inherit;
-        font-size: 13px;
-        font-weight: 650;
-        cursor: pointer;
-        transition: background .2s;
-    }
-
-    .profile-page .profile-reset {
-        background: #eef1eb;
-        color: #56645a;
-    }
-
-    .profile-page .profile-reset:hover {
-        background: #e2e8df;
-    }
-
-    .profile-page .profile-save {
-        background: #166a56;
-        color: #ffffff;
-    }
-
-    .profile-page .profile-save:hover {
-        background: #115440;
-    }
-    /* ALERT */
-
-    .profile-page .profile-alert {
-        padding: 13px 16px;
-        margin-bottom: 18px;
-        border-radius: 9px;
-        font-size: 13px;
-    }
-
-    .profile-page .profile-error {
-        background: #fff0ee;
-        border: 1px solid #f4d2cd;
-        color: #a33c32;
-    }
-
-    .profile-page .profile-success {
-        background: #edf7ef;
-        border: 1px solid #d1e9d5;
-        color: #27643a;
-    }
-    /* RESPONSIVE */
-
-    @media (max-width: 650px) {
-        .profile-page {
-            padding: 22px 14px 35px;
-        }
-        .profile-page .profile-card {
-            padding: 21px 18px;
-        }
-        .profile-page .profile-actions {
-            flex-direction: column-reverse;
-            align-items: stretch;
-        }
-        .profile-page .profile-actions button {
-            width: 100%;
-        }
-    }
-</style>
 
 <div class="profile-page">
 
     <div class="profile-heading">
-        <h2>Edit Profil</h2>
+        <h1>Profil Saya</h1>
         <p>Kelola informasi akun anggota koperasi kamu.</p>
     </div>
 
     {% if error %}
-    <div class="profile-alert profile-error">
+    <div class="profile-alert profile-error" role="alert">
         {{ error }}
     </div>
     {% endif %} {% if success %}
@@ -304,14 +49,17 @@
 
                     <div class="profile-field">
                         <label for="nama">Nama Lengkap</label>
-                        <input id="nama" type="text" name="nama" value="{{ user.nama }}" maxlength="100" required>
+                        <input id="nama" type="text" name="nama" value="{{ values.nama }}" maxlength="150" autocomplete="name" required>
                     </div>
 
                     <div class="profile-field">
                         <label for="email">Alamat Email</label>
-                        <input id="email" type="email" name="email" value="{{ user.email }}" maxlength="190" required>
+                        <input id="email" type="email" name="email" value="{{ values.email }}" maxlength="190" autocomplete="email" required>
                     </div>
 
+                    <div class="profile-field"><label for="nomor">Nomor anggota</label><input id="nomor" value="{{ user.nomor }}" readonly><small>Nomor anggota tetap dan dikelola koperasi.</small></div>
+                    <div class="profile-field"><label for="telepon">Nomor telepon</label><input id="telepon" type="tel" name="telepon" value="{{ values.telepon }}" maxlength="30" autocomplete="tel" required></div>
+                    <div class="profile-field"><label for="alamat">Alamat</label><textarea id="alamat" name="alamat" maxlength="2000" autocomplete="street-address" required>{{ values.alamat }}</textarea></div>
                     <div class="profile-field">
                         <label for="role">Role Akun</label>
                         <input id="role" type="text" value="Anggota" disabled>

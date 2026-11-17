@@ -16,6 +16,11 @@
     <div class="member-welcome-icon">🛍️</div>
 </section>
 
+<section aria-label="Ringkasan pesanan saya" class="stats member-order-stats">
+{% for state in ['Menunggu konfirmasi','Dikonfirmasi','Selesai','Dibatalkan'] %}
+<a class="card member-stat-card" href="/pesanan?status={{ state|urlencode }}"><span class="small-note">{{ state }}</span><strong class="stat-value">{{ order_counts.get(state,0) }}</strong><span class="small-note">Lihat pesanan →</span></a>
+{% endfor %}
+</section>
 <!-- ACCOUNT SUMMARY -->
 <div class="member-section-heading">
     <div>

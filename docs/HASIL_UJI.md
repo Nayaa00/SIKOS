@@ -130,3 +130,35 @@ pesanan terbuka. Pencatatan pembayaran akun nyata tidak dilakukan dalam smoke te
 Yang masih perlu dilengkapi: Transaksi Saya, nama menu Pesanan Saya, pembatalan mandiri
 anggota untuk status Menunggu konfirmasi, telepon/alamat/nomor pada profil, validasi form
 pendaftaran yang mempertahankan input, dan pemeriksaan visual mobile. Integrasi belum dipush.
+
+
+## Penyelesaian fitur anggota — 17 November 2026
+
+Perintah CMD: `venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --tb=short`
+dengan `SIKOS_ALLOW_MARIADB=1` dan URL database uji khusus dari .env (nilainya tidak dicetak).
+Hasil akhir: **64 passed, 1 warning in 48.40s**; 59 SQLite/HTTP dan 5 MariaDB XAMPP.
+Warning merupakan deprecation Starlette/httpx. MySQL 8 belum diuji.
+
+Tambahan cakupan: privasi Transaksi Saya, snapshot setelah produk diedit, riwayat pembayaran
+dan void, pembatalan mandiri pemilik hanya saat menunggu, CSRF/role, pagination/filter,
+pendaftaran dengan input dipertahankan tanpa password, escaping input, profil atomic dan
+perlindungan nomor/role, serta hitungan dashboard yang tidak memasukkan pesanan orang lain.
+Tes MariaDB baru memakai dua koneksi untuk balapan pembatalan anggota versus konfirmasi
+admin dan pembayaran versus pembatalan admin. Baris fixture dibersihkan di database uji.
+
+Smoke browser memakai sesi anggota yang sudah login: menu/dashboard hitungan pribadi,
+Pesanan Saya beserta tombol pembatalan menunggu, Transaksi Saya keadaan kosong, profil
+lengkap dan form daftar dibuka. Katalog -> tambah air mineral 1 unit -> ubah menjadi 2 unit
+(subtotal/total Rp7.000) -> Perbarui -> reload -> Hapus berhasil. Keranjang dipulihkan kosong.
+Tidak membuat/membatalkan pesanan nyata atau mengubah profil/password nyata dalam smoke test.
+Transaksi berisi barang serta checkout/pembatalan penuh diverifikasi melalui HTTP otomatis
+dan tes database; belum ada smoke klik pembayaran nyata menggunakan akun admin.
+
+Tampilan desktop dan breakpoint sempit diperiksa. Override layar 390x844 dipakai tetapi
+browser melaporkan viewport efektif 582px; bukan bukti perangkat HP fisik/390 CSS px.
+Screenshot layout sempit pesanan berhasil, tabel berada dalam kontainer scroll; lebar halaman
+profil tidak melebihi viewport. Override dikembalikan ke ukuran awal. Screenshot lokal ada di
+workspace kerja Codex, bukan menyimpan data pribadi ke repository.
+
+Tidak ada migrasi skema tambahan pada penyelesaian anggota ini. Server berjalan di port 8001.
+Perubahan belum dipush; pengiriman ke branch remote menunggu instruksi pengguna.

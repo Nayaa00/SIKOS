@@ -198,3 +198,16 @@ def record_payment(db, sale_id, amount):
 
     db.flush()
     return sale
+
+
+def cancel_member_order(db, order_id, member_id):
+    # Ownership and status are checked under the same lock used by admin confirmation.
+    order=db.scalar(select(Order).where(Order.id==order_id,Order.member_id==member_id)
+                    .with_for_update().execution_options(populate_existing=True))
+    if order is None:
+        from fastapi import HTTPException
+        raise HTTPException(404,'Pesanan tidak ditemukan.')
+    if order.status=='Dibatalkan':return order
+    if order.status!='Menunggu konfirmasi':
+        raise RuleError('Pesanan sudah diproses admin. Hanya pesanan Menunggu konfirmasi yang dapat Anda batalkan.')
+    return transition(db,order_id,'Dibatalkan',member_id)

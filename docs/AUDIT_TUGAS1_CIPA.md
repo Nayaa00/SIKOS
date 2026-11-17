@@ -26,3 +26,12 @@ Keranjang/checkout adalah Tugas 2. Pesanan dan transaksi pengguna adalah Tugas 3
 Validasi: 40 tes lulus (37 tes SQLite/HTTP dan 3 tes integrasi konkurensi pada MariaDB XAMPP dengan database uji khusus). Tidak mengklaim pengujian MySQL 8. Satu warning deprecation Starlette/httpx. git diff --check bersih.
 
 Penggabungan dan perbaikan disimpan di branch lokal dzikri; belum dipush ke remote.
+
+
+## Tindak lanjut setelah integrasi tim
+
+Catatan kekurangan di atas merupakan kondisi saat audit pertama. Pada penyelesaian terbaru,
+tautan dashboard/menu aktif telah ditambahkan, login anggota tetap menuju dashboard sebagai
+alur yang digunakan tim, validasi pendaftaran sudah inline dan mempertahankan input non-password,
+serta form akun dan profil sudah dirapikan. Profil kini mencakup telepon, alamat dan nomor anggota.
+Hasil dan batas pemeriksaan browser terbaru tercatat di HASIL_UJI.md.

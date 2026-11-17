@@ -78,7 +78,10 @@ python -m uvicorn app.main:app --reload
 2. Cari produk atau pilih kategori di katalog. Produk habis ditandai.
 3. Masukkan barang ke keranjang. Ubah jumlah, klik Perbarui keranjang. Isi 0 untuk menghapus baris.
 4. Klik Buat pesanan. Harga snapshot disimpan, stok belum dikurangi sampai konfirmasi admin.
-5. Lihat status dan rincian pesanan sendiri melalui Pesanan.
+5. Dashboard menampilkan jumlah pesanan pribadi per status. Buka Pesanan Saya untuk melihat rincian, filter status dan halaman riwayat (20 pesanan per halaman).
+6. Anggota dapat membatalkan pesanan sendiri yang masih Menunggu konfirmasi. Setelah admin memprosesnya, pembatalan oleh anggota ditolak. Pembatalan menunggu tidak mengubah stok.
+7. Transaksi Saya menampilkan transaksi milik akun sendiri setelah dikonfirmasi, rincian harga saat pesan, pembayaran tunai dan kembalian. Transaksi dibatalkan tetap terlihat sebagai riwayat dan tidak dihitung dalam penjualan.
+8. Profile menampilkan nomor anggota dan role tetap; nama, email, telepon dan alamat dapat diperbarui. Ubah password membutuhkan password lama dan konfirmasi password baru. Kesalahan form mempertahankan input non-password.
 
 ## Demonstrasi yang disarankan
 
@@ -105,7 +108,7 @@ Test memakai SQLite sementara agar cepat dijalankan tanpa mengubah data MySQL. P
 - Keranjang belum mereservasi stok. Stok diperiksa saat pesan dan saat konfirmasi. Jika stok sudah habis ketika admin mengonfirmasi, seluruh konfirmasi ditolak.
 - Impor kode duplikat ditolak, tidak memperbarui barang/stok yang telah ada. Gunakan Edit atau catatan stok masuk untuk barang lama. File Excel sistem sebelumnya belum disediakan, jadi format header spesifik belum dipetakan.
 - Data transaksi/audit tidak dihapus. Master data menggunakan soft delete.
-- Pada prototipe ini semua daftar dimuat untuk skala praktikum. Riwayat stok menampilkan 300 entri terbaru. Pagination dapat ditambahkan jika data uji besar.
+- Pesanan dan Transaksi Saya dibatasi 20 entri per halaman. Produk dan daftar master masih dimuat untuk skala praktikum. Riwayat stok menampilkan 300 entri terbaru.
 - Bootstrap/Chart.js dari CDN memerlukan internet untuk grafik. Tabel/form dasar memakai CSS lokal. Smoke test navigasi/empty state dan grafik telah dilakukan di browser lokal; lihat docs/HASIL_UJI.md.
 - Proyek untuk demonstrasi lokal. Untuk deployment publik perlu HTTPS, COOKIE_SECURE=1, konfigurasi server dan manajemen secret, rate limiting login, serta pengujian tambahan.
 

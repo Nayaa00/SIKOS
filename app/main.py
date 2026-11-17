@@ -13,12 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
 from .models import User, Category, Product, Order, Sale, StockMovement
 from .security import hash_password, verify_password, csrf_token, check_csrf
-from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment
+from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment, cancel_member_order
 from .product_images import product_image, default_product_image, valid_product_image
 from .product_codes import next_product_code, choose_prefix
 from .analytics import analyze
@@ -70,133 +70,49 @@ def buyer(user:User=Depends(current)):
 # EDIT PROFIL ANGGOTA
 # ==========================================
 
-@app.get('/profil', response_class=HTMLResponse)
-def profile_page(
-    request: Request,
-    user: User = Depends(buyer),
-    db: Session = Depends(get_db)
-):
-    return page(
-        request,
-        'profile.html',
-        user=user,
-        error=None,
-        success=None
-    )
+PROFILE_FIELDS = ('nama','email','telepon','alamat')
 
+def profile_result(request,user,values=None,error=None,status=200):
+    response=page(request,'profile.html',user=user,values=values or {k:getattr(user,k) for k in PROFILE_FIELDS},error=error)
+    response.status_code=status
+    return response
+
+@app.get('/profil', response_class=HTMLResponse)
+def profile_page(request:Request,user:User=Depends(buyer)):
+    return profile_result(request,user)
 
 @app.post('/profil', response_class=HTMLResponse)
-async def profile_update(
-    request: Request,
-    user: User = Depends(buyer),
-    db: Session = Depends(get_db)
-):
-    form = await request.form()
-    check_csrf(request, form)
-
-    nama = str(form.get('nama', '')).strip()
-    email = str(form.get('email', '')).strip().lower()
-
-    password_lama = str(form.get('password_lama', ''))
-    password_baru = str(form.get('password_baru', ''))
-    konfirmasi_password = str(form.get('konfirmasi_password', ''))
-
-    # Validasi nama
-    if not nama or len(nama) > 100:
-        return page(
-            request, 'profile.html',
-            user=user,
-            error='Nama wajib diisi dan maksimal 100 karakter.',
-            success=None
-        )
-
-    # Validasi email
-    if not email or len(email) > 190 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email):
-        return page(
-            request, 'profile.html',
-            user=user,
-            error='Alamat email tidak valid.',
-            success=None
-        )
-
-    # Cek email sudah digunakan akun lain
-    existing_user = db.scalar(
-        select(User).where(
-            User.email == email,
-            User.id != user.id
-        )
-    )
-
-    if existing_user:
-        return page(
-            request, 'profile.html',
-            user=user,
-            error='Email sudah digunakan oleh akun lain.',
-            success=None
-        )
-
-    # Perubahan password hanya jika password baru diisi
-    if password_baru:
-        if not password_lama:
-            return page(
-                request, 'profile.html',
-                user=user,
-                error='Masukkan password lama untuk mengganti password.',
-                success=None
-            )
-
-        if not verify_password(password_lama, user.password_hash):
-            return page(
-                request, 'profile.html',
-                user=user,
-                error='Password lama tidak sesuai.',
-                success=None
-            )
-
-        if not 8 <= len(password_baru) <= 128:
-            return page(
-                request, 'profile.html',
-                user=user,
-                error='Password baru harus 8 sampai 128 karakter.',
-                success=None
-            )
-
-        if password_baru != konfirmasi_password:
-            return page(
-                request, 'profile.html',
-                user=user,
-                error='Konfirmasi password baru tidak cocok.',
-                success=None
-            )
-
+async def profile_update(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
+    form=await request.form();check_csrf(request,form)
+    values={k:str(form.get(k,getattr(user,k))).strip() for k in PROFILE_FIELDS}
+    values['email']=values['email'].lower()
     try:
-        # Update data profil
-        user.nama = nama
-        user.email = email
-
-        if password_baru:
-            user.password_hash = hash_password(password_baru)
-
+        values['nama']=text(values['nama'],'Nama',150)
+        values['email']=text(values['email'],'Email',190)
+        if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',values['email']):
+            raise RuleError('Alamat email tidak valid.')
+        values['telepon']=text(values['telepon'],'Telepon',30)
+        values['alamat']=text(values['alamat'],'Alamat',2000)
+        if db.scalar(select(User.id).where(User.email==values['email'],User.id!=user.id)):
+            return profile_result(request,user,values,'Email sudah digunakan oleh akun lain.',409)
+        old=str(form.get('password_lama',''))
+        new=str(form.get('password_baru',''))
+        confirm=str(form.get('konfirmasi_password',''))
+        if old or new or confirm:
+            if not 8<=len(new)<=128:raise RuleError('Password baru harus 8 sampai 128 karakter.')
+            if not verify_password(old,user.password_hash):raise RuleError('Password lama tidak sesuai.')
+            if new!=confirm:raise RuleError('Konfirmasi password baru tidak cocok.')
+        # Validate the complete form before changing any persisted attributes.
+        password_hash=hash_password(new) if new else None
+        for key,value in values.items():setattr(user,key,value)
+        if password_hash:user.password_hash=password_hash
         db.commit()
-        db.refresh(user)
-
+    except RuleError as exc:
+        return profile_result(request,user,values,str(exc),400)
     except IntegrityError:
         db.rollback()
-
-        return page(
-            request, 'profile.html',
-            user=user,
-            error='Email sudah digunakan oleh akun lain.',
-            success=None
-        )
-
-    return page(
-        request,
-        'profile.html',
-        user=user,
-        error=None,
-        success='Profil berhasil diperbarui!'
-    )
+        return profile_result(request,user,values,'Email sudah digunakan oleh akun lain.',409)
+    return go('/profil',request,'Profil berhasil diperbarui!')
 
 
 @app.exception_handler(HTTPException)
@@ -254,6 +170,7 @@ async def login_submit(request:Request,db:Session=Depends(get_db)):
             request,
             'login.html',
             user=None,
+            values={'email':str(form.get('email','')).strip()},
             error='Email atau password salah, atau akun nonaktif.'
         )
 
@@ -272,22 +189,26 @@ def register_page(request:Request):
 
 @app.post('/daftar')
 async def register_submit(request:Request,db:Session=Depends(get_db)):
-    form=await request.form()
-    check_csrf(request,form)
-
-    if str(form.get('password','')) != str(form.get('password_confirm','')):
-        raise RuleError('Konfirmasi password tidak sama.')
-
-    member=User(
-        nomor='AG-'+uuid4().hex[:12].upper(),
-        role='anggota',
-        active=True
-    )
-
-    apply_member(member,form,new=True)
-    db.add(member)
-    db.commit()
-
+    form=await request.form();check_csrf(request,form)
+    # Password values are never rendered back into the form or saved in the session.
+    values={k:str(form.get(k,'')).strip() for k in PROFILE_FIELDS}
+    def invalid(message,status=400):
+        response=page(request,'member_form.html',user=None,member=None,register=True,values=values,error=message)
+        response.status_code=status
+        return response
+    try:
+        if str(form.get('password',''))!=str(form.get('password_confirm','')):
+            raise RuleError('Konfirmasi password tidak sama.')
+        member=User(nomor='AG-'+uuid4().hex[:12].upper(),role='anggota',active=True)
+        apply_member(member,form,new=True)
+        if db.scalar(select(User.id).where(User.email==member.email)):
+            return invalid('Email sudah terdaftar. Gunakan email lain atau masuk ke akun Anda.',409)
+        db.add(member);db.commit()
+    except RuleError as exc:
+        return invalid(str(exc))
+    except IntegrityError:
+        db.rollback()
+        return invalid('Email sudah terdaftar. Gunakan email lain atau masuk ke akun Anda.',409)
     return go('/login',request,'Pendaftaran berhasil. Silakan login menggunakan email.')
 
 @app.get('/')
@@ -400,7 +321,7 @@ def products(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)
         if db.get(Category,category_id) is None:raise RuleError('Kategori tidak ditemukan.')
         statement=statement.where(Product.category_id==category_id)
         category=str(category_id)
-    return page(request,'products.html',user=user,products=db.scalars(statement.order_by(Product.nama)).all(),
+    return page(request,'products.html',user=user,products=db.scalars(statement.options(joinedload(Product.category)).order_by(Product.nama)).all(),
                 categories=db.scalars(select(Category).order_by(Category.nama)).all(),query=query,category=category,
                 total_count=db.scalar(select(func.count()).select_from(Product)))
 
@@ -506,6 +427,7 @@ def member_dashboard(
             Product.active.is_(True),
             Category.active.is_(True)
         )
+        .options(joinedload(Product.category))
         .order_by(Product.stok.desc(), Product.nama)
         .limit(4)
     ).all()
@@ -516,6 +438,7 @@ def member_dashboard(
         user=user,
         product_count=product_count,
         category_count=category_count,
+        order_counts=dict(db.execute(select(Order.status,func.count()).where(Order.member_id==user.id).group_by(Order.status)).all()),
         featured_products=featured_products
     )
 
@@ -563,7 +486,7 @@ def catalog(
         )
 
     products = db.scalars(
-        statement.order_by(Product.nama)
+        statement.options(joinedload(Product.category)).order_by(Product.nama)
     ).all()
 
     categories = db.scalars(
@@ -581,9 +504,12 @@ def catalog(
     )
 
 def cart_rows(request,db):
+    cart=request.session.get('cart',{})
+    products={str(p.id):p for p in db.scalars(select(Product).options(joinedload(Product.category))
+              .where(Product.id.in_([int(key) for key in cart])))} if cart else {}
     rows=[];total=0
-    for key,qty in request.session.get('cart',{}).items():
-        product=db.get(Product,int(key))
+    for key,qty in cart.items():
+        product=products.get(key)
         if product:
             subtotal=product.harga*qty;total+=subtotal
             rows.append(dict(product=product,qty=qty,subtotal=subtotal,available=product.active and product.category.active and qty<=product.stok))
@@ -662,11 +588,42 @@ async def order_create(request:Request,user:User=Depends(buyer),db:Session=Depen
     db.commit();request.session['cart']={};request.session.pop('checkout_token',None)
     return go('/pesanan',request,f'{order.kode} dibuat. Stok akan dikurangi saat admin mengonfirmasi.')
 
+ORDER_STATUSES=('Menunggu konfirmasi','Dikonfirmasi','Selesai','Dibatalkan')
+
+def history_window(request,db,statement):
+    try:number=max(1,min(100000,int(request.query_params.get('halaman','1'))))
+    except ValueError:number=1
+    total=db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+    pages=max(1,(total+19)//20);number=min(number,pages)
+    return statement.limit(20).offset((number-1)*20),dict(number=number,pages=pages,total=total)
+
 @app.get('/pesanan')
 def order_list(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
     statement=select(Order).order_by(Order.id.desc())
     if user.role!='admin':statement=statement.where(Order.member_id==user.id)
-    return page(request,'orders.html',user=user,orders=db.scalars(statement).all())
+    status=request.query_params.get('status','')
+    if status not in ORDER_STATUSES:status=''
+    if status:statement=statement.where(Order.status==status)
+    statement,window=history_window(request,db,statement)
+    orders=db.scalars(statement.options(selectinload(Order.lines),joinedload(Order.member))).all()
+    return page(request,'orders.html',user=user,orders=orders,window=window,status=status,statuses=ORDER_STATUSES)
+
+@app.post('/pesanan/{order_id}/batal')
+async def order_cancel(order_id:int,request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
+    form=await request.form();check_csrf(request,form)
+    try:
+        cancel_member_order(db,order_id,user.id);db.commit()
+    except RuleError as exc:
+        db.rollback()
+        return go('/pesanan',request,str(exc))
+    return go('/pesanan',request,'Pesanan dibatalkan. Stok tidak berubah.')
+
+@app.get('/transaksi-saya')
+def member_sales(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
+    statement=select(Sale,Order).join(Order,Sale.order_id==Order.id).where(Order.member_id==user.id).order_by(Sale.id.desc())
+    statement,window=history_window(request,db,statement)
+    rows=db.execute(statement.options(selectinload(Order.lines))).all()
+    return page(request,'member_sales.html',user=user,rows=rows,window=window)
 
 @app.post('/pesanan/{order_id}/status')
 async def order_status(order_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
