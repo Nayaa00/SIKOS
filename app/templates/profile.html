@@ -57,14 +57,9 @@
                         <input id="email" type="email" name="email" value="{{ values.email }}" maxlength="190" autocomplete="email" required>
                     </div>
 
-                    <div class="profile-field"><label for="nomor">Nomor anggota</label><input id="nomor" value="{{ user.nomor }}" readonly><small>Nomor anggota tetap dan dikelola koperasi.</small></div>
+                    <div class="profile-field"><label for="nomor">Nomor anggota</label><input id="nomor" type="text" value="{{ user.nomor }}" disabled><small>Nomor anggota tetap dan dikelola koperasi.</small></div>
                     <div class="profile-field"><label for="telepon">Nomor telepon</label><input id="telepon" type="tel" name="telepon" value="{{ values.telepon }}" maxlength="30" autocomplete="tel" required></div>
                     <div class="profile-field"><label for="alamat">Alamat</label><textarea id="alamat" name="alamat" maxlength="2000" autocomplete="street-address" required>{{ values.alamat }}</textarea></div>
-                    <div class="profile-field">
-                        <label for="role">Role Akun</label>
-                        <input id="role" type="text" value="Anggota" disabled>
-                        <small>Role akun tidak dapat diubah.</small>
-                    </div>
 
                 </div>
             </section>

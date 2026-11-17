@@ -404,22 +404,6 @@ def member_dashboard(
     user: User = Depends(buyer),
     db: Session = Depends(get_db)
 ):
-    product_count = db.scalar(
-        select(func.count())
-        .select_from(Product)
-        .join(Category)
-        .where(
-            Product.active.is_(True),
-            Category.active.is_(True)
-        )
-    ) or 0
-
-    category_count = db.scalar(
-        select(func.count())
-        .select_from(Category)
-        .where(Category.active.is_(True))
-    ) or 0
-
     featured_products = db.scalars(
         select(Product)
         .join(Category)
@@ -436,8 +420,6 @@ def member_dashboard(
         request,
         'member_dashboard.html',
         user=user,
-        product_count=product_count,
-        category_count=category_count,
         order_counts=dict(db.execute(select(Order.status,func.count()).where(Order.member_id==user.id).group_by(Order.status)).all()),
         featured_products=featured_products
     )

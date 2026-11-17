@@ -629,7 +629,7 @@ def test_cipa_member_dashboard_role_and_active_catalog(web,store):
     assert result.headers['location']=='/anggota/dashboard'
     dashboard=web.get('/anggota/dashboard')
     assert dashboard.status_code==200 and 'Selamat datang, Naila!' in dashboard.text
-    assert 'AG1' in dashboard.text and 'href="/produk"' not in dashboard.text
+    assert 'Ringkasan Anggota' not in dashboard.text and 'href="/produk"' not in dashboard.text
     product.active=False;second.stok=0;db.commit()
     catalog=web.get('/katalog')
     assert 'Foto Beras 5kg' not in catalog.text
@@ -947,7 +947,8 @@ def test_profile_contact_validation_retains_input_and_protects_identity(web,stor
     assert response.status_code==200 and 'Profil berhasil diperbarui' in response.text
     db.expire_all();member=db.get(User,2)
     assert (member.telepon,member.alamat,member.nomor,member.role)==('089999','Alamat baru','AG1','anggota')
-    assert 'value="AG1" readonly' in response.text
+    assert '<input id="nomor" type="text" value="AG1" disabled>' in response.text
+    assert 'Role Akun' not in response.text and 'id="role"' not in response.text
     assert db.get(User,3).nama=='Anggota Dua'
 
 

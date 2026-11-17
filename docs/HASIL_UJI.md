@@ -162,3 +162,15 @@ workspace kerja Codex, bukan menyimpan data pribadi ke repository.
 
 Tidak ada migrasi skema tambahan pada penyelesaian anggota ini. Server berjalan di port 8001.
 Perubahan belum dipush; pengiriman ke branch remote menunggu instruksi pengguna.
+
+## Penyesuaian UI malam 17 November 2026
+
+- Nomor anggota pada Profile berupa kolom disabled; backend tetap mengabaikan perubahan nomor/role dari pengguna.
+- Kolom Role Akun dihapus dari form Profile.
+- Tombol Keluar pada layout admin dan anggota memakai tema merah, termasuk hover dan fokus.
+- Bagian Informasi Akun / Ringkasan Anggota di dashboard anggota dihapus, termasuk query jumlah produk/kategori yang tidak dipakai lagi.
+- Sapaan, ringkasan status pesanan dan produk pilihan tetap tersedia. Identitas anggota dilihat melalui Profile.
+
+Hasil pekerjaan malam ini mencakup integrasi cipa/luthfi, pembayaran tunai, penyelesaian
+Transaksi Saya/pembatalan mandiri, perbaikan form akun/profil, optimasi query dan riwayat,
+serta penyesuaian UI di atas. Perubahan dikumpulkan ke branch nayaa sesuai instruksi pengguna.

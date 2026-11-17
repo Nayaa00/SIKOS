@@ -1620,3 +1620,4 @@ button:disabled {
 .profile-page .profile-form{display:grid;grid-template-columns:1fr;gap:20px}.profile-page .profile-section-heading{margin:24px 0 20px}.profile-page .profile-divider{border-top:1px solid var(--line);margin:28px 0}.profile-page .profile-actions{margin-top:28px}.profile-page .profile-alert{padding:14px 18px;border-radius:10px;margin-bottom:20px}.profile-page .profile-error{background:#fff1e9;color:#863b1b}.member-order-stats a{text-decoration:none}.member-order-stats .stat-value{display:block;margin:12px 0}.member-order-stats{margin-bottom:30px}
 
 .cart-item{flex-direction:row}.member-order-stats a{text-decoration:none;color:var(--ink)}.member-order-stats .stat-value{display:block;margin:12px 0}
+.logout-button{background:#c03932;color:#fff}.logout-button:hover,.logout-button:focus-visible{background:#992d27;color:#fff}.logout-button:focus-visible{outline:3px solid #f5b7b1;outline-offset:3px}

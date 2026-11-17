@@ -21,39 +21,6 @@
 <a class="card member-stat-card" href="/pesanan?status={{ state|urlencode }}"><span class="small-note">{{ state }}</span><strong class="stat-value">{{ order_counts.get(state,0) }}</strong><span class="small-note">Lihat pesanan →</span></a>
 {% endfor %}
 </section>
-<!-- ACCOUNT SUMMARY -->
-<div class="member-section-heading">
-    <div>
-        <div class="eyebrow">INFORMASI AKUN</div>
-        <h2>Ringkasan Anggota</h2>
-    </div>
-</div>
-
-<section class="stats member-stats">
-
-    <article class="card member-stat-card">
-        <div class="member-stat-icon">♙</div>
-        <div class="stat-label">Nomor Anggota</div>
-        <div class="member-stat-text">{{ user.nomor }}</div>
-        <div class="small-note">Identitas anggota SIKOS</div>
-    </article>
-
-    <article class="card member-stat-card">
-        <div class="member-stat-icon">▤</div>
-        <div class="stat-label">Produk Tersedia</div>
-        <div class="stat-value">{{ product_count }}</div>
-        <div class="small-note">Produk aktif di koperasi</div>
-    </article>
-
-    <article class="card member-stat-card">
-        <div class="member-stat-icon">▦</div>
-        <div class="stat-label">Kategori Produk</div>
-        <div class="stat-value">{{ category_count }}</div>
-        <div class="small-note">Kategori aktif</div>
-    </article>
-
-</section>
-
 <!-- FEATURED PRODUCTS -->
 <section class="member-section-heading member-product-heading">
     <div>

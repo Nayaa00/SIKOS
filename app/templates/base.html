@@ -56,7 +56,7 @@
                     <span class="pill">{{ user.role }}</span>
                     <form class="inline" method="post" action="/logout">
                         <input type="hidden" name="csrf" value="{{ csrf }}">
-                        <button class="btn-light btn-sm">Keluar</button>
+                        <button class="btn-danger btn-sm logout-button">Keluar</button>
                     </form>
                 </div>
                 {% endif %}
