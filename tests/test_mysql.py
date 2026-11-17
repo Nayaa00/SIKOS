@@ -41,6 +41,8 @@ def mysql_store():
     migrate_product_labels(engine)
     from app.code_migration import migrate_product_codes
     migrate_product_codes(engine)
+    from app.migrations import migrate_sale_payments
+    migrate_sale_payments(engine)
     with engine.connect() as connection:
         engines = connection.execute(text(
             'SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES '

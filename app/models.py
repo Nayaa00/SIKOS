@@ -76,11 +76,22 @@ class OrderLine(Base):
 
 class Sale(Base):
     __tablename__ = 'sales'
+
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     valid: Mapped[bool] = mapped_column(Boolean, default=True)
     total: Mapped[int] = mapped_column(BigInteger)
+
+    metode_pembayaran: Mapped[str] = mapped_column(
+        String(20), default='Tunai', server_default='Tunai'
+    )
+    status_pembayaran: Mapped[str] = mapped_column(
+        String(20), default='Belum dibayar', server_default='Belum dibayar'
+    )
+    jumlah_bayar: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    kembalian: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 class StockMovement(Base):
     __tablename__ = 'stock_movements'

@@ -14,7 +14,7 @@ from app.db import Base,get_db
 from app.main import app
 from app.models import User,Category,Product,Order,Sale,StockMovement
 from app.security import hash_password,verify_password
-from app.services import create_order,transition,movement,RuleError,period,integer
+from app.services import create_order,transition,movement,RuleError,period,integer,record_payment
 from app.analytics import analyze
 from app.importer import load_rows,save_rows
 
@@ -46,7 +46,7 @@ def web(store):
     app.dependency_overrides.clear()
 
 def token(response):
-    return re.search(r'name="csrf" value="([^"]+)"',response.text).group(1)
+    return re.search(r'name="csrf"\s+value="([^"]+)"', response.text).group(1)
 
 def signin(client,admin=False):
     csrf=token(client.get('/login'))
@@ -181,12 +181,112 @@ def test_cart_and_order_browser_flow(web,store):
     assert db.scalar(select(func.count()).select_from(Order))==1
     assert db.get(Product,1).stok==10
 
+def test_cart_update_and_remove(web, store):
+    _, _, member, _, product, _, _ = store
+    csrf = signin(web)
+
+    # Tambahkan 2 barang ke keranjang
+    response = web.post('/keranjang/tambah', data={
+        'csrf': csrf,
+        'product_id': product.id,
+        'qty': 2
+    })
+    assert response.status_code == 200
+    assert 'Rp140.000' in response.text
+
+    # Ubah jumlah menjadi 3
+    response = web.post('/keranjang/ubah', data={
+        'csrf': csrf,
+        f'qty_{product.id}': 3
+    })
+    assert response.status_code == 200
+    assert 'Rp210.000' in response.text
+
+    # Hapus barang dengan jumlah 0
+    response = web.post('/keranjang/ubah', data={
+        'csrf': csrf,
+        f'qty_{product.id}': 0
+    })
+    assert response.status_code == 200
+    assert 'Keranjang masih kosong' in response.text
+
+
+def test_cart_rejects_quantity_above_stock(web, store):
+    _, _, _, _, _, second, _ = store
+    csrf = signin(web)
+
+    # Stok produk kedua hanya 1, tetapi diminta 2
+    response = web.post('/keranjang/tambah', data={
+        'csrf': csrf,
+        'product_id': second.id,
+        'qty': 2
+    })
+
+    assert response.status_code == 400
+
+
+
 def test_member_orders_private(web,store):
     db,a,m,other,p,s,_=store
     order=create_order(db,other.id,{str(p.id):1},'2'*32);db.commit()
     csrf=signin(web)
     assert order.kode not in web.get('/pesanan').text
     assert web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Dikonfirmasi'}).status_code==403
+
+
+def test_order_details_displayed_to_member(web, store):
+    db, admin, member, _, product, _, _ = store
+
+    order = create_order(
+        db, member.id, {str(product.id): 2}, '9' * 32
+    )
+    db.commit()
+
+    signin(web)
+    response = web.get('/pesanan')
+
+    assert response.status_code == 200
+    assert order.kode in response.text
+    assert 'Beras 5kg' in response.text
+    assert 'Rp70.000' in response.text
+    assert 'Rp140.000' in response.text
+    assert 'Konfirmasi:' in response.text
+    assert 'Selesai:' in response.text
+
+
+def test_empty_order_history(web):
+    signin(web)
+
+    response = web.get('/pesanan')
+
+    assert response.status_code == 200
+    assert 'Belum ada pesanan.' in response.text
+
+
+def test_admin_order_status_visible_to_member(web, store):
+    db, admin, member, _, product, _, _ = store
+
+    order = create_order(
+        db, member.id, {str(product.id): 1}, 'a' * 32
+    )
+    db.commit()
+
+    # Admin mengonfirmasi pesanan
+    csrf = signin(web, True)
+    response = web.post(
+        f'/pesanan/{order.id}/status',
+        data={'csrf': csrf, 'status': 'Dikonfirmasi'}
+    )
+    assert response.status_code == 200
+
+    # Pembeli masuk dan melihat status terbaru
+    signin(web)
+    response = web.get('/pesanan')
+
+    assert response.status_code == 200
+    assert order.kode in response.text
+    assert 'Dikonfirmasi' in response.text
+
 
 def test_admin_crud_http(web,store):
     csrf=signin(web,True)
@@ -620,3 +720,144 @@ def test_profile_invalid_email_and_password_atomic(web,store):
     result=web.post('/profil',data={'csrf':csrf,'nama':'Naila','email':member.email,'password_lama':'password-member','password_baru':'password-new','konfirmasi_password':'password-new'})
     assert 'Profil berhasil diperbarui' in result.text
     db.expire_all();assert verify_password('password-new',db.get(User,2).password_hash)
+
+def test_admin_can_record_cash_payment(web, store):
+    db, admin, member, _, product, _, _ = store
+
+    order = create_order(
+        db, member.id, {str(product.id): 1}, 'b' * 32
+    )
+    transition(db, order.id, 'Dikonfirmasi', admin.id)
+    db.commit()
+
+    sale = db.scalar(
+        select(Sale).where(Sale.order_id == order.id)
+    )
+
+    csrf = signin(web, True)
+
+    response = web.post(
+        f'/transaksi/{sale.id}/bayar',
+        data={
+            'csrf': csrf,
+            'jumlah_bayar': 80000
+        }
+    )
+
+    assert response.status_code == 200
+
+    db.refresh(sale)
+    assert sale.status_pembayaran == 'Lunas'
+    assert sale.metode_pembayaran == 'Tunai'
+    assert sale.jumlah_bayar == 80000
+    assert sale.kembalian == 10000
+    assert sale.paid_at is not None
+
+
+def test_payment_rejects_insufficient_and_duplicate(web, store):
+    db, admin, member, _, product, _, _ = store
+
+    order = create_order(
+        db, member.id, {str(product.id): 1}, 'c' * 32
+    )
+    transition(db, order.id, 'Dikonfirmasi', admin.id)
+    db.commit()
+
+    sale = db.scalar(
+        select(Sale).where(Sale.order_id == order.id)
+    )
+
+    csrf = signin(web, True)
+
+    insufficient = web.post(
+        f'/transaksi/{sale.id}/bayar',
+        data={
+            'csrf': csrf,
+            'jumlah_bayar': 50000
+        }
+    )
+
+    assert insufficient.status_code == 400
+
+    db.refresh(sale)
+    assert sale.status_pembayaran == 'Belum dibayar'
+
+    successful = web.post(
+        f'/transaksi/{sale.id}/bayar',
+        data={
+            'csrf': csrf,
+            'jumlah_bayar': 70000
+        }
+    )
+
+    assert successful.status_code == 200
+
+    duplicate = web.post(
+        f'/transaksi/{sale.id}/bayar',
+        data={
+            'csrf': csrf,
+            'jumlah_bayar': 70000
+        }
+    )
+
+    assert duplicate.status_code == 400
+
+
+def test_member_cannot_record_payment(web, store):
+    db, admin, member, _, product, _, _ = store
+
+    order = create_order(
+        db, member.id, {str(product.id): 1}, 'd' * 32
+    )
+    transition(db, order.id, 'Dikonfirmasi', admin.id)
+    db.commit()
+
+    sale = db.scalar(
+        select(Sale).where(Sale.order_id == order.id)
+    )
+
+    csrf = signin(web)
+
+    response = web.post(
+        f'/transaksi/{sale.id}/bayar',
+        data={
+            'csrf': csrf,
+            'jumlah_bayar': 70000
+        }
+    )
+
+    assert response.status_code == 403
+
+    db.refresh(sale)
+    assert sale.status_pembayaran == 'Belum dibayar'
+
+def test_paid_order_cancellation_restores_once_and_voids(store):
+    db, admin, member, _, product, _, _ = store
+    order=create_order(db,member.id,{str(product.id):2},'9'*32)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+    record_payment(db,sale.id,sale.total+10000);db.commit()
+    paid_at=sale.paid_at
+    transition(db,order.id,'Dibatalkan',admin.id);db.commit()
+    transition(db,order.id,'Dibatalkan',admin.id);db.commit()
+    assert order.status=='Dibatalkan' and product.stok==10 and not sale.valid
+    assert sale.status_pembayaran=='Lunas' and sale.jumlah_bayar==150000
+    assert sale.kembalian==10000 and sale.paid_at==paid_at
+    assert db.scalar(select(func.count()).select_from(StockMovement))==2
+    result=analyze(db,'harian',datetime.now().date().isoformat())
+    assert result['transactions']==0 and result['total']==0
+    with pytest.raises(RuleError):record_payment(db,sale.id,sale.total)
+
+def test_payment_schema_migration_preserves_existing_sales(tmp_path):
+    from sqlalchemy import text as sql_text,inspect
+    from app.migrations import migrate_sale_payments
+    engine=create_engine('sqlite:///'+str(tmp_path/'old.db'))
+    with engine.begin() as connection:
+        connection.execute(sql_text('CREATE TABLE sales (id INTEGER PRIMARY KEY, total BIGINT, valid BOOLEAN)'))
+        connection.execute(sql_text('INSERT INTO sales VALUES (1,70000,1)'))
+    migrate_sale_payments(engine);migrate_sale_payments(engine)
+    assert 'paid_at' in {c['name'] for c in inspect(engine).get_columns('sales')}
+    with engine.connect() as connection:
+        row=connection.execute(sql_text('SELECT total,valid,status_pembayaran,jumlah_bayar,kembalian FROM sales')).one()
+        assert tuple(row)==(70000,1,'Belum dibayar',0,0)
+    engine.dispose()

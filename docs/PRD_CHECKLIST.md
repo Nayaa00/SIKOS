@@ -145,3 +145,11 @@ nama umum dan belum memiliki pembatalan mandiri anggota. Profil cipa mengubah na
 email dan password, belum menyediakan telepon/alamat/nomor anggota. Progres luthfi
 terlihat pada fetch tetapi belum digabung karena permintaan saat ini mengambil cipa.
 Tidak ada push remote pada integrasi ini.
+
+### Pembayaran tunai hasil integrasi luthfi
+
+Admin dapat mencatat uang diterima dan kembalian pada Transaksi. Jalankan `python -m app.cli init-db`
+atau `python -m app.cli migrate-payments` untuk database lama; migrasi hanya menambah kolom.
+Pembayaran tidak mengubah stok atau snapshot. Pembatalan pesanan terkonfirmasi tetap membuat
+transaksi tidak valid untuk analisis dan mengembalikan stok tepat sekali. Catatan uang diterima
+historis tetap ada; belum tersedia pencatatan pengembalian uang.

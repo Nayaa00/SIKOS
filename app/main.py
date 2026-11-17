@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
 from .models import User, Category, Product, Order, Sale, StockMovement
 from .security import hash_password, verify_password, csrf_token, check_csrf
-from .services import RuleError, integer, text, code, movement, create_order, transition
+from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment
 from .product_images import product_image, default_product_image, valid_product_image
 from .product_codes import next_product_code, choose_prefix
 from .analytics import analyze
@@ -344,7 +344,7 @@ async def member_save(request:Request,user:User=Depends(admin),db:Session=Depend
     member=db.get(User,integer(member_id,'ID')) if member_id else User(role='anggota')
     if member is None or member.role!='anggota':raise HTTPException(404,'Anggota tidak ditemukan.')
     member.nomor=text(form.get('nomor'),'Nomor anggota',40).upper()
-    apply_member(member,form,new=not bool(member_id))
+    apply_member(member, form, new=not bool(member_id))
     member.active=form.get('active')=='on'
     db.add(member);db.commit();return go('/anggota',request,'Data anggota disimpan.')
 
@@ -678,6 +678,31 @@ async def order_status(order_id:int,request:Request,user:User=Depends(admin),db:
 def sales_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     rows=db.execute(select(Sale,Order).join(Order,Sale.order_id==Order.id).order_by(Sale.id.desc())).all()
     return page(request,'sales.html',user=user,rows=rows)
+
+
+@app.post('/transaksi/{sale_id}/bayar')
+async def sale_payment(
+    sale_id: int,
+    request: Request,
+    user: User = Depends(admin),
+    db: Session = Depends(get_db)
+):
+    form = await request.form()
+    check_csrf(request, form)
+
+    amount = integer(
+        form.get('jumlah_bayar'),
+        'Jumlah uang diterima'
+    )
+
+    record_payment(db, sale_id, amount)
+    db.commit()
+
+    return go(
+        '/transaksi',
+        request,
+        'Pembayaran berhasil dicatat.'
+    )
 
 @app.get('/laporan')
 def report_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):

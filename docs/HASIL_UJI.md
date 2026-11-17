@@ -105,3 +105,28 @@ filter kategori, pilihan yang dipertahankan, hasil kosong/reset, validasi ID kat
 pencarian wildcard literal, dan pembatasan halaman Produk dari pembeli.
 Tidak ada perubahan skema atau isi database aplikasi pada perubahan ini.
 MySQL 8 nyata belum diuji.
+
+## Integrasi luthfi setelah cipa — 17 November 2026
+
+Branch sumber: origin/luthfi pada 005bcfe. Digabung ke Octavian lokal setelah cipa.
+Konflik main.py, member_form.html dan test_sikos.py diselesaikan dengan mempertahankan
+form pendaftaran/konfirmasi password yang sudah digunakan dan seluruh tes kedua alur.
+Pencatatan pembayaran tunai admin masuk, termasuk validasi nominal, kembalian,
+penolakan pembayaran ganda dan batas akses. init-db kini menjalankan migrasi pembayaran.
+
+Aturan PRD tetap berlaku: pesanan Dikonfirmasi dapat dibatalkan, stok kembali tepat satu
+kali dan transaksi menjadi tidak valid untuk analisis. Riwayat pembayaran yang pernah
+tercatat tetap disimpan; pembatalan bukan bukti bahwa uang sudah dikembalikan. Belum ada
+alur pencatatan refund. Pembayaran dan pembatalan memakai urutan lock order lalu sale.
+
+Migrasi tambah kolom hanya pada database sikos. Pemeriksaan sebelum/sesudah menunjukkan
+stok/harga produk, status/total pesanan, snapshot baris, transaksi dan jumlah audit tetap.
+Pengujian: 56 skenario, 55 langsung lulus; satu tes lama gagal karena teks kosong berubah
+menjadi Keranjang masih kosong. Setelah menyesuaikan assertion, tes itu diulang dan lulus
+(1 passed, 52 deselected). Termasuk 3 tes MariaDB XAMPP nyata yang lulus; MySQL 8 belum diuji.
+Satu warning deprecation Starlette/httpx. Smoke test browser akun anggota: profil dan riwayat
+pesanan terbuka. Pencatatan pembayaran akun nyata tidak dilakukan dalam smoke test.
+
+Yang masih perlu dilengkapi: Transaksi Saya, nama menu Pesanan Saya, pembatalan mandiri
+anggota untuk status Menunggu konfirmasi, telepon/alamat/nomor pada profil, validasi form
+pendaftaran yang mempertahankan input, dan pemeriksaan visual mobile. Integrasi belum dipush.

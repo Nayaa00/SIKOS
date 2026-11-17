@@ -5,19 +5,20 @@ from .db import Base,engine,SessionLocal
 from .models import User,Category,Product
 from .security import hash_password
 from .services import movement
-from .migrations import migrate_product_labels
+from .migrations import migrate_product_labels, migrate_sale_payments
 from .code_migration import migrate_product_codes
 from .product_codes import next_product_code
 from sqlalchemy import or_
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('command',choices=['init-db','migrate-labels','migrate-codes','create-admin','seed-demo'])
+    parser.add_argument('command',choices=['init-db','migrate-labels','migrate-codes','migrate-payments','create-admin','seed-demo'])
     args=parser.parse_args()
     if args.command=='init-db':
         Base.metadata.create_all(engine)
         migrate_product_labels(engine)
         migrate_product_codes(engine)
+        migrate_sale_payments(engine)
         print('Tabel SIKOS siap.')
         return
     if args.command=='migrate-labels':
@@ -27,6 +28,10 @@ def main():
     if args.command=='migrate-codes':
         migrate_product_codes(engine)
         print('Kode produk sesuai kategori; stok dan snapshot pesanan tetap.')
+        return
+    if args.command=='migrate-payments':
+        migrate_sale_payments(engine)
+        print('Migrasi pembayaran selesai.')
         return
     with SessionLocal() as db:
         if args.command=='create-admin':
