@@ -216,11 +216,11 @@ def test_template_import_and_report_export(web):
 
 def test_registration_does_not_grant_admin(web):
     csrf=token(web.get('/daftar'))
-    response=web.post('/daftar',data={'csrf':csrf,'nama':'Test','email':'test@example.com','telepon':'0812','alamat':'Bandung','password':'password-test','role':'admin'})
+    response=web.post('/daftar',data={'csrf':csrf,'nama':'Test','email':'test@example.com','telepon':'0812','alamat':'Bandung','password':'password-test','password_confirm':'password-test','role':'admin'})
     assert response.status_code==200
     csrf=token(web.get('/login'))
     response=web.post('/login',data={'csrf':csrf,'email':'test@example.com','password':'password-test'})
-    assert '/katalog' in str(response.url)
+    assert '/anggota/dashboard' in str(response.url)
     assert web.get('/produk').status_code==403
 
 
@@ -501,3 +501,40 @@ def test_admin_product_search_category_combination_and_empty_result(web,store):
     assert 'Tidak ada produk yang cocok' in web.get('/produk?q=%25').text
     signin(web)
     assert web.get('/produk?q=teh').status_code==403
+
+
+def test_cipa_signup_confirmation_and_duplicate_email(web,store):
+    db=store[0]
+    page=web.get('/daftar')
+    assert page.status_code==200 and 'name="password_confirm"' in page.text
+    csrf=token(page)
+    form={'csrf':csrf,'nama':'Pembeli Baru','email':'signup@example.com','telepon':'081234','alamat':'Bandung','password':'password-new','password_confirm':'different-pass'}
+    count=db.scalar(select(func.count()).select_from(User))
+    result=web.post('/daftar',data=form)
+    assert result.status_code==400 and 'Konfirmasi password tidak sama' in result.text
+    assert db.scalar(select(func.count()).select_from(User))==count
+    result=web.post('/daftar',data={**form,'password_confirm':'password-new','role':'admin'})
+    assert result.status_code==200
+    member=db.scalar(select(User).where(User.email=='signup@example.com'))
+    assert member.role=='anggota' and member.nomor.startswith('AG-')
+    assert member.password_hash!='password-new'
+    result=web.post('/daftar',data={**form,'password_confirm':'password-new'})
+    assert result.status_code==409
+    assert db.scalar(select(func.count()).select_from(User))==count+1
+
+def test_cipa_member_dashboard_role_and_active_catalog(web,store):
+    db,_,_,_,product,second,_=store
+    csrf=token(web.get('/login'))
+    result=web.post('/login',data={'csrf':csrf,'email':'naila@example.com','password':'password-member'},follow_redirects=False)
+    assert result.headers['location']=='/anggota/dashboard'
+    dashboard=web.get('/anggota/dashboard')
+    assert dashboard.status_code==200 and 'Selamat datang, Naila!' in dashboard.text
+    assert 'AG1' in dashboard.text and 'href="/produk"' not in dashboard.text
+    product.active=False;second.stok=0;db.commit()
+    catalog=web.get('/katalog')
+    assert 'Foto Beras 5kg' not in catalog.text
+    assert 'Stok Habis' in catalog.text
+    assert f'name="product_id" value="{second.id}"' not in catalog.text
+    assert db.get(Product,second.id).stok==0
+    signin(web,True)
+    assert web.get('/anggota/dashboard').status_code==403

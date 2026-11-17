@@ -69,7 +69,7 @@
     <article class="inventory-card">
 
         <div class="inventory-photo">
-            <img src="{{ product|product_image }}" alt="{{ product.nama }}" loading="lazy">
+            <img src="{{ product|product_image }}" alt="{{ product.nama }}" loading="lazy" data-fallback="{{ product|default_product_image }}">
 
             <span class="inventory-category">
                 {{ product.category.nama }}
@@ -139,4 +139,5 @@
 
 </section>
 
+<p class="small-note catalog-photo-note">Foto ilustrasi sesuai jenis produk. <a href="/static/products/credits.html">Sumber dan lisensi foto</a></p>
 {% endblock %}

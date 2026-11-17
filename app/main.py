@@ -133,10 +133,17 @@ async def login_submit(request:Request,db:Session=Depends(get_db)):
     return go('/anggota/dashboard')
 
 
+@app.get('/daftar')
+def register_page(request:Request):
+    return page(request,'member_form.html',user=None,member=None,register=True)
+
 @app.post('/daftar')
 async def register_submit(request:Request,db:Session=Depends(get_db)):
     form=await request.form()
     check_csrf(request,form)
+
+    if str(form.get('password','')) != str(form.get('password_confirm','')):
+        raise RuleError('Konfirmasi password tidak sama.')
 
     member=User(
         nomor='AG-'+uuid4().hex[:12].upper(),
@@ -175,14 +182,10 @@ def apply_member(member, form, new=False):
     member.alamat = text(form.get('alamat'), 'Alamat', 2000)
 
     password = str(form.get('password', ''))
-    password_confirm = str(form.get('password_confirm', ''))
 
     if new or password:
         if len(password) < 8 or len(password) > 128:
             raise RuleError('Password harus 8–128 karakter.')
-
-        if password != password_confirm:
-            raise RuleError('Konfirmasi password tidak sama.')
 
         member.password_hash = hash_password(password)
 
