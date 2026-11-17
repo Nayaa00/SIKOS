@@ -37,6 +37,10 @@ def mysql_store():
         if not is_mariadb and int(version.split('.')[0]) < 8:
             pytest.fail('Diperlukan MySQL 8 atau lebih baru.')
     Base.metadata.create_all(engine)
+    from app.migrations import migrate_product_labels
+    migrate_product_labels(engine)
+    from app.code_migration import migrate_product_codes
+    migrate_product_codes(engine)
     with engine.connect() as connection:
         engines = connection.execute(text(
             'SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES '
@@ -151,3 +155,29 @@ def test_mysql_atomic_confirmation_snapshot_and_void(mysql_store):
         assert db.get(Product, q).stok == 10
         for kind in ('harian', 'mingguan', 'bulanan', 'tahunan'):
             assert not any(row['pesanan'] == order.kode for row in analyze(db, kind, day)['rows'])
+
+
+def test_mysql_parallel_product_code_allocation(mysql_store):
+    from app.product_codes import next_product_code,choose_prefix
+    factory,(_,_,pid,_)=mysql_store
+    with factory() as db:
+        category=db.get(Product,pid).category
+        category.code_prefix=choose_prefix(category.nama,set(db.scalars(select(Category.code_prefix).where(Category.code_prefix.is_not(None)))))
+        db.commit();cid=category.id
+    barrier=Barrier(2)
+    def worker(_):
+        with factory() as db:
+            barrier.wait(timeout=10)
+            value=next_product_code(db,cid)
+            product=Product(kode=value,nama='Produk paralel',category_id=cid,harga=1000,stok=0,satuan='pak')
+            db.add(product);db.commit()
+            return product.id,value
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        created=list(pool.map(worker,range(2)))
+    try:
+        assert len({value for _,value in created})==2
+        assert sorted(int(value[3:]) for _,value in created)==[1,2]
+    finally:
+        with factory() as db:
+            db.execute(delete(Product).where(Product.id.in_([pid for pid,_ in created])))
+            db.commit()

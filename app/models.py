@@ -22,6 +22,8 @@ class Category(Base):
     __tablename__ = 'categories'
     id: Mapped[int] = mapped_column(primary_key=True)
     nama: Mapped[str] = mapped_column(String(100), unique=True)
+    code_prefix: Mapped[str | None] = mapped_column(String(3), unique=True, nullable=True)
+    code_counter: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 class Product(Base):
@@ -29,7 +31,9 @@ class Product(Base):
     __table_args__ = (CheckConstraint('stok >= 0'), CheckConstraint('harga > 0'))
     id: Mapped[int] = mapped_column(primary_key=True)
     kode: Mapped[str] = mapped_column(String(40), unique=True)
+    source_code: Mapped[str | None] = mapped_column(String(40), unique=True, nullable=True)
     nama: Mapped[str] = mapped_column(String(150))
+    label: Mapped[str] = mapped_column(String(100), default='', server_default='')
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'))
     category: Mapped[Category] = relationship()
     harga: Mapped[int] = mapped_column(BigInteger)

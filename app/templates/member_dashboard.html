@@ -1,0 +1,143 @@
+ {% extends "base.html" %} {% block title %}Dashboard Anggota · SIKOS{% endblock %} {% block content %}
+
+<!-- WELCOME SECTION -->
+<section class="member-welcome">
+    <div class="member-welcome-content">
+        <div class="eyebrow">KOPERASI SEJAHTERA</div>
+        <h1>Selamat datang, {{ user.nama }}!</h1>
+        <p class="muted">
+            Selamat berbelanja dan memenuhi kebutuhan harianmu bersama Koperasi SIKOS.
+        </p>
+        <a href="/katalog" class="btn member-main-btn">
+            Lihat Katalog Produk →
+        </a>
+    </div>
+
+    <div class="member-welcome-icon">🛍️</div>
+</section>
+
+<!-- ACCOUNT SUMMARY -->
+<div class="member-section-heading">
+    <div>
+        <div class="eyebrow">INFORMASI AKUN</div>
+        <h2>Ringkasan Anggota</h2>
+    </div>
+</div>
+
+<section class="stats member-stats">
+
+    <article class="card member-stat-card">
+        <div class="member-stat-icon">♙</div>
+        <div class="stat-label">Nomor Anggota</div>
+        <div class="member-stat-text">{{ user.nomor }}</div>
+        <div class="small-note">Identitas anggota SIKOS</div>
+    </article>
+
+    <article class="card member-stat-card">
+        <div class="member-stat-icon">▤</div>
+        <div class="stat-label">Produk Tersedia</div>
+        <div class="stat-value">{{ product_count }}</div>
+        <div class="small-note">Produk aktif di koperasi</div>
+    </article>
+
+    <article class="card member-stat-card">
+        <div class="member-stat-icon">▦</div>
+        <div class="stat-label">Kategori Produk</div>
+        <div class="stat-value">{{ category_count }}</div>
+        <div class="small-note">Kategori aktif</div>
+    </article>
+
+</section>
+
+<!-- FEATURED PRODUCTS -->
+<section class="member-section-heading member-product-heading">
+    <div>
+        <div class="eyebrow">BELANJA KEBUTUHAN HARIAN</div>
+        <h2>Produk Pilihan</h2>
+        <p class="muted">Beberapa produk yang tersedia di koperasi.</p>
+    </div>
+
+    <a href="/katalog" class="member-text-link">
+        Lihat semua produk →
+    </a>
+</section>
+
+<section class="products-grid member-featured-grid">
+
+    {% for product in featured_products %}
+
+    <article class="inventory-card">
+
+        <div class="inventory-photo">
+            <img src="{{ product|product_image }}" alt="{{ product.nama }}" loading="lazy" data-fallback="{{ product|default_product_image }}">
+
+            <span class="inventory-category">
+                {{ product.category.nama }}
+            </span>
+        </div>
+
+        <div class="inventory-body">
+
+            <div class="inventory-code">
+                {{ product.kode }}
+            </div>
+
+            <h2>{{ product.nama }}</h2>
+
+            {% if product.label %}
+            <div class="inventory-label">
+                {{ product.label }}
+            </div>
+            {% endif %}
+
+            <div class="inventory-price">
+                {{ product.harga|rupiah }}
+                <small>/ {{ product.satuan }}</small>
+            </div>
+
+            <div class="inventory-detail">
+                <span>Stok tersedia</span>
+
+                <strong class="{% if product.stok == 0 %}stock-empty{% endif %}">
+                    {% if product.stok > 0 %}
+                        {{ product.stok }} {{ product.satuan }}
+                    {% else %}
+                        Stok habis
+                    {% endif %}
+                </strong>
+            </div>
+
+            <div class="inventory-actions">
+                <a href="/katalog" class="btn">
+                    Lihat katalog
+                </a>
+            </div>
+
+        </div>
+    </article>
+
+    {% else %}
+
+    <!-- EMPTY STATE -->
+    <div class="member-empty-state">
+
+        <div class="member-empty-icon">🛍️</div>
+
+        <h3>Belum Ada Produk</h3>
+
+        <p>
+            Belum ada produk yang tersedia saat ini. Silakan kunjungi katalog kembali nanti.
+        </p>
+
+        <a href="/katalog" class="btn member-main-btn">
+            Lihat Katalog Produk →
+        </a>
+
+    </div>
+
+    {% endfor %}
+
+</section>
+
+<p class="small-note catalog-photo-note">Foto ilustrasi sesuai jenis produk. <a href="/static/products/credits.html">Sumber dan lisensi foto</a></p>
+{% endblock %}

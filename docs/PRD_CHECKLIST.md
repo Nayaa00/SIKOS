@@ -39,3 +39,90 @@ Acuan: PRODUCT REQUIREMENTS DOCUMENT.docx yang dilampirkan pengguna. Isi identik
 Pengujian otomatis 22 skenario SQLite (ditambah 2 skenario integrasi MySQL opsional) memakai SQLite temporer dengan tabel SQLAlchemy yang sama. Cakupan mencakup service bisnis, rollback, status, idempotensi, impor parsial, akun, role, CSRF, halaman, keranjang, transaksi, batas periode dan ekspor.
 
 MariaDB XAMPP 10.4.32 telah diuji dengan dua koneksi dan smoke test navigasi/empty state browser telah dilakukan. MySQL 8 nyata belum diuji. Lihat docs/HASIL_UJI.md untuk hasil dan batas verifikasi. Tidak ada kredensial atau data pribadi yang dibundel.
+
+
+## Label dan kategori produk
+
+Kategori utama: Bahan pokok, Perawatan, Makanan ringan, Minuman, Kesehatan.
+Label menjelaskan jenis yang lebih spesifik, misalnya Beras, Sabun mandi atau Teh.
+Pencarian katalog memakai nama atau label, bukan kode; filter kategori tetap ada.
+Template Excel baru memuat `kode,nama,label,kategori,harga,stok,satuan,deskripsi`.
+Kategori kustom harus dibuat di menu Kategori sebelum digunakan saat impor. Format lama dengan kategori Beras/Minyak/Gula
+dan jenis lama yang dikenali otomatis dipetakan menjadi label dan kategori utama.
+Kode produk yang sudah ada tetap ditolak sehingga impor tidak menimpa stok.
+
+Untuk database lama, jalankan `python -m app.cli migrate-labels` sebelum restart
+aplikasi. Migrasi menambahkan kolom label, membuat lima kategori utama jika belum
+ada, dan memetakan kategori lama yang aktif. Kategori lama dinonaktifkan setelah
+dipindahkan; kategori lama yang sudah nonaktif dibiarkan untuk menjaga visibilitas.
+Kategori khusus lain tidak dipetakan sembarangan. Migrasi tidak mengubah stok,
+harga, pesanan, transaksi, atau audit dan aman dijalankan ulang.
+
+
+## Pemisahan halaman admin dan pembeli
+
+Katalog, Keranjang, tambah/ubah keranjang dan pembuatan pesanan khusus role anggota (pembeli). Menu tersebut disembunyikan dari admin dan akses langsung GET/POST oleh admin ditolak 403. Admin melihat barang melalui Produk dan tetap dapat memproses pesanan melalui Pesanan, Transaksi dan Laporan.
+
+## Kategori dan kode produk otomatis
+
+Admin dapat menambah kategori melalui nama, status aktif, dan awalan kode opsional.
+Awalan terdiri dari tiga huruf unik. Jika kosong, sistem membuatnya dari nama kategori.
+Nama kategori pada daftar tetap berupa teks; statusnya dapat diubah melalui Simpan.
+
+| Kategori utama | Awalan | Contoh |
+| --- | --- | --- |
+| Bahan pokok | BPK | BPK001 |
+| Perawatan | PRW | PRW001 |
+| Makanan ringan | MKR | MKR001 |
+| Minuman | MNM | MNM001 |
+| Kesehatan | SHT | SHT001 |
+
+Pada Tambah produk, pilih kategori untuk mengisi pratinjau Kode produk secara otomatis.
+Kode tidak dapat diketik manual. Server mengalokasikan nomor final secara atomik saat
+menyimpan, dengan row lock kategori dan counter dalam transaksi yang sama. Pratinjau
+tidak memesan nomor. Nomor minimal tiga digit, dapat bertambah setelah 999 dan tidak
+dipakai ulang ketika produk diarsipkan. Mengedit tanpa mengganti kategori mempertahankan
+kode; perpindahan kategori menghasilkan kode baru sesuai kategori tujuan.
+
+Untuk database lama jalankan `python -m app.cli migrate-codes` sebelum restart aplikasi.
+Migrasi menambah code_prefix/code_counter pada kategori dan source_code unik pada produk,
+lalu mengubah kode produk tanpa mengganti ID, harga, stok, foto, status, transaksi atau audit.
+Snapshot kode/nama/harga pada order_lines tetap menjadi riwayat saat pesanan dibuat.
+Kode lama disimpan sebagai referensi anti-duplikat, sehingga impor ulang Excel lama tetap
+ditolak tanpa menimpa stok. Migrasi aman dijalankan ulang. `init-db` menyertakan migrasi ini.
+
+Header Excel tetap memiliki kolom kode: nilainya adalah referensi asal untuk anti-duplikat,
+sedangkan kode yang ditampilkan aplikasi dihasilkan sesuai kategori. Kategori utama yang
+belum ada dapat dibuat saat impor; kategori kustom harus ditambahkan di menu Kategori dahulu.
+
+
+## Label dropdown dan pencarian Produk
+
+Pada Tambah/Edit produk, Label dipilih dari dropdown berdasarkan nilai label unik
+yang sudah tersimpan di data produk, termasuk produk arsip. Backend menolak label
+di luar pilihan tersebut. Jika belum ada label, impor data produk terlebih dahulu;
+tidak ada label baru yang dibuat hanya dengan mengetik pada form ini.
+
+Menu Produk memiliki pencarian nama/kode/label dan filter kategori dropdown yang dapat
+digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip untuk
+keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
+dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
+mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+## Tugas 2: keranjang anggota
+
+Keranjang menampilkan foto, kategori, harga satuan, stok, jumlah, subtotal dan total.
+Tombol Hapus bekerja per barang, termasuk barang yang dinonaktifkan atau kehabisan stok.
+Jumlah 0 juga menghapus barang saat diperbarui. Ringkasan berubah saat jumlah diketik;
+server tetap menghitung harga dan total final. Checkout membaca jumlah terbaru langsung
+dari formulir sehingga tidak perlu menekan Perbarui terlebih dahulu.
+
+Perubahan keranjang divalidasi seluruhnya sebelum disimpan. Jika stok berubah atau barang
+nonaktif, keranjang tetap tersedia dengan pesan kesalahan dan tidak ada pesanan parsial.
+Submit ulang token pesanan yang sama tidak membuat pesanan kedua. Stok tidak berkurang
+saat checkout; snapshot harga tetap dibuat di server saat pesanan berhasil dibuat.
+
+Verifikasi 17 November 2026: 44 tes lulus, mencakup 41 tes SQLite/HTTP dan 3 tes integrasi
+konkurensi MariaDB XAMPP pada database uji khusus. MySQL 8 belum diuji. Smoke test browser
+halaman keranjang kosong berhasil; keranjang berisi barang dan tampilan HP belum diverifikasi
+secara visual pada perubahan ini. Satu warning deprecation Starlette/httpx.
