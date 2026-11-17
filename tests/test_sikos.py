@@ -250,8 +250,8 @@ def test_order_details_displayed_to_member(web, store):
     assert 'Beras 5kg' in response.text
     assert 'Rp70.000' in response.text
     assert 'Rp140.000' in response.text
-    assert 'Konfirmasi:' in response.text
-    assert 'Selesai:' in response.text
+    assert 'Konfirmasi:' not in response.text
+    assert 'Selesai:' not in response.text
 
 
 def test_empty_order_history(web):
