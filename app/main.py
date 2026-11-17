@@ -54,6 +54,10 @@ def admin(user:User=Depends(current)):
     if user.role!='admin': raise HTTPException(403,'Halaman ini khusus admin koperasi.')
     return user
 
+def buyer(user:User=Depends(current)):
+    if user.role!='anggota': raise HTTPException(403,'Halaman ini khusus anggota/pembeli koperasi.')
+    return user
+
 @app.exception_handler(HTTPException)
 async def http_error(request,exc):
     if exc.status_code==303:return go(exc.headers.get('Location','/login'))
@@ -169,11 +173,13 @@ def categories(request:Request,user:User=Depends(admin),db:Session=Depends(get_d
 @app.post('/kategori/simpan')
 async def category_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
-    category=db.get(Category,integer(form['id'],'ID')) if form.get('id') else Category()
+    if not form.get('id'):
+        return go('/kategori',request,'Kategori utama sudah tersedia. Ubah status melalui daftar kategori; tidak perlu menambah kategori lagi.')
+    category=db.get(Category,integer(form['id'],'ID'))
     if category is None:raise HTTPException(404,'Kategori tidak ditemukan.')
-    category.nama=text(form.get('nama'),'Nama kategori',100)
+    # Category names are fixed. Only the active flag is editable, even for crafted requests.
     category.active=form.get('active')=='on'
-    db.add(category);db.commit();return go('/kategori',request,'Kategori disimpan.')
+    db.commit();return go('/kategori',request,'Status kategori disimpan.')
 
 @app.post('/kategori/{category_id}/hapus')
 async def category_delete(category_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -237,7 +243,7 @@ async def stock_save(request:Request,user:User=Depends(admin),db:Session=Depends
     db.commit();return go('/stok',request,'Perubahan stok dicatat.')
 
 @app.get('/katalog')
-def catalog(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+def catalog(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     query=request.query_params.get('q','').strip()[:100]
     category=request.query_params.get('kategori','')
     statement=select(Product).join(Category).where(Product.active.is_(True),Category.active.is_(True))
@@ -258,7 +264,7 @@ def cart_rows(request,db):
     return rows,total
 
 @app.post('/keranjang/tambah')
-async def cart_add(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+async def cart_add(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
     product=db.get(Product,integer(form.get('product_id'),'Produk'));qty=integer(form.get('qty'),'Jumlah')
     if product is None or not product.active or not product.category.active:raise RuleError('Produk tidak tersedia.')
@@ -271,13 +277,13 @@ async def cart_add(request:Request,user:User=Depends(current),db:Session=Depends
     return go('/keranjang',request,'Barang ditambahkan ke keranjang.')
 
 @app.get('/keranjang')
-def cart_page(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+def cart_page(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     rows,total=cart_rows(request,db)
     token=request.session.setdefault('checkout_token',uuid4().hex)
     return page(request,'cart.html',user=user,rows=rows,total=total,token=token)
 
 @app.post('/keranjang/ubah')
-async def cart_update(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+async def cart_update(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
     cart={}
     for key in request.session.get('cart',{}):
@@ -290,7 +296,7 @@ async def cart_update(request:Request,user:User=Depends(current),db:Session=Depe
     return go('/keranjang',request,'Keranjang diperbarui.')
 
 @app.post('/pesanan/buat')
-async def order_create(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+async def order_create(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
     token=str(form.get('token',''))
     prior=db.scalar(select(Order).where(Order.member_id==user.id,Order.token==token))
