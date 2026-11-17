@@ -2,7 +2,7 @@
 
 Implementasi PRD 1.0 untuk studi kasus Koperasi Sejahtera. Proyek ini memakai FastAPI + MySQL, HTML/Jinja2 + Bootstrap/CSS/JavaScript, Pandas/openpyxl dan Chart.js.
 
-Baca `docs/PRD_CHECKLIST.md` untuk pemetaan kebutuhan, keputusan bisnis, dan batas pengujian. ERD serta alur status ada di `docs/ERD.md`. Instruksi untuk melanjutkan di Codex ada di `PROMPT_CODEX.txt`.
+Baca `docs/PRD_CHECKLIST.md` untuk pemetaan kebutuhan, keputusan bisnis, dan batas pengujian. ERD serta alur status ada di `docs/ERD.md`. Instruksi untuk melanjutkan di Codex ada di `file.txt`.
 
 ## Siapkan Windows
 
