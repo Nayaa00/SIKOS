@@ -24,11 +24,15 @@ erDiagram
     CATEGORIES {
         int id PK
         string nama UK
+        string code_prefix UK
+        int code_counter
         boolean active
     }
     PRODUCTS {
         int id PK
         string kode UK
+        string source_code UK
+        string label
         int category_id FK
         string nama
         bigint harga
@@ -63,6 +67,11 @@ erDiagram
         int id PK
         int order_id FK,UK
         datetime created_at
+        string metode_pembayaran
+        string status_pembayaran
+        bigint jumlah_bayar
+        bigint kembalian
+        datetime paid_at
         boolean valid
         bigint total
     }

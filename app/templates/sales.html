@@ -1,1 +1,87 @@
-{% extends 'base.html' %}{% block content %}<span class="eyebrow">PENJUALAN</span><h1>Catatan transaksi</h1><p class="muted">Transaksi dibuat satu kali saat konfirmasi. Pembatalan menandainya tidak valid untuk analisis.</p><div class="card"><table><tr><th>Pesanan</th><th>Anggota</th><th>Konfirmasi WIB</th><th>Total</th><th>Status pesanan</th><th>Validitas</th></tr>{% for sale,order in rows %}<tr><td>{{ order.kode }}</td><td>{{ order.member.nama }}</td><td>{{ sale.created_at|wib }}</td><td>{{ sale.total|rupiah }}</td><td>{{ order.status }}</td><td>{{ 'Valid' if sale.valid else 'Dibatalkan' }}</td></tr>{% else %}<tr><td colspan="6" class="empty">Belum ada transaksi dikonfirmasi.</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends 'base.html' %}
+
+{% block content %}
+<span class="eyebrow">PENJUALAN</span>
+<h1>Catatan transaksi</h1>
+
+<p class="muted">
+    Transaksi dibuat satu kali saat konfirmasi.
+    Pembatalan menandainya tidak valid untuk analisis.
+</p>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Pesanan</th>
+                <th>Anggota</th>
+                <th>Konfirmasi WIB</th>
+                <th>Total</th>
+                <th>Status pesanan</th>
+                <th>Validitas</th>
+                <th>Status pembayaran</th>
+                <th>Uang diterima</th>
+                <th>Kembalian</th>
+                <th>Aksi pembayaran</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for sale, order in rows %}
+            <tr>
+                <td>{{ order.kode }}</td>
+                <td>{{ order.member.nama }}</td>
+                <td>{{ sale.created_at|wib }}</td>
+                <td>{{ sale.total|rupiah }}</td>
+                <td>{{ order.status }}</td>
+
+                <td>
+                    {{ 'Valid' if sale.valid else 'Dibatalkan' }}
+                </td>
+
+                <td>
+                    {% if sale.status_pembayaran == 'Lunas' %}
+                    <strong>Lunas</strong>
+                    <br>
+                    <small>{{ sale.paid_at|wib if sale.paid_at else '-' }}</small>
+                    {% else %}
+                    Belum dibayar
+                    {% endif %}
+                </td>
+
+                <td>{{ sale.jumlah_bayar|rupiah }}</td>
+                <td>{{ sale.kembalian|rupiah }}</td>
+
+                <td>
+                    {% if sale.valid and sale.status_pembayaran != 'Lunas' %}
+                    <form method="post" action="/transaksi/{{ sale.id }}/bayar">
+
+                        <input type="hidden" name="csrf" value="{{ csrf }}">
+
+                        <input type="number" name="jumlah_bayar" min="{{ sale.total }}" max="1000000000" step="1"
+                            placeholder="Uang diterima" required>
+
+                        <button type="submit">
+                            Catat pembayaran
+                        </button>
+                    </form>
+
+                    {% elif sale.status_pembayaran == 'Lunas' %}
+                    <span class="muted">Sudah dibayar</span>
+                    {% else %}
+                    <span class="muted">Transaksi tidak valid</span>
+                    {% endif %}
+                </td>
+            </tr>
+
+            {% else %}
+            <tr>
+                <td colspan="10" class="empty">
+                    Belum ada transaksi dikonfirmasi.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -36,18 +36,137 @@ Acuan: PRODUCT REQUIREMENTS DOCUMENT.docx yang dilampirkan pengguna. Isi identik
 
 ## Verifikasi dan keterbatasan
 
-Pengujian otomatis 22 skenario SQLite (ditambah 2 skenario integrasi MySQL opsional) memakai SQLite temporer dengan tabel SQLAlchemy yang sama. Cakupan mencakup service bisnis, rollback, status, idempotensi, impor parsial, akun, role, CSRF, halaman, keranjang, transaksi, batas periode dan ekspor.
-
-MariaDB XAMPP 10.4.32 telah diuji dengan dua koneksi dan smoke test navigasi/empty state browser telah dilakukan. MySQL 8 nyata belum diuji. Lihat docs/HASIL_UJI.md untuk hasil dan batas verifikasi. Tidak ada kredensial atau data pribadi yang dibundel.
+Verifikasi terbaru 17 November 2026: 64 tes lulus (59 SQLite/HTTP dan 5 integrasi MariaDB XAMPP 10.4.32). Mencakup hak akses, privasi transaksi, validasi form, stok, snapshot, impor, laporan, pembatalan dan konkurensi nyata. MySQL 8 belum diuji. Lihat docs/HASIL_UJI.md untuk batas smoke test browser. Tidak ada kredensial akun nyata yang dibundel.
 
 
-## Akses pembeli dan pengaturan kategori
+## Label dan kategori produk
 
-Katalog, Keranjang dan pembuatan pesanan khusus anggota/pembeli. Menu tersebut
-tidak ditampilkan kepada admin dan akses langsung GET/POST ditolak 403. Admin
-tetap mengelola barang melalui Produk dan memproses Pesanan/Transaksi/Laporan.
+Kategori utama: Bahan pokok, Perawatan, Makanan ringan, Minuman, Kesehatan.
+Label menjelaskan jenis yang lebih spesifik, misalnya Beras, Sabun mandi atau Teh.
+Pencarian katalog memakai nama atau label, bukan kode; filter kategori tetap ada.
+Template Excel baru memuat `kode,nama,label,kategori,harga,stok,satuan,deskripsi`.
+Kategori kustom harus dibuat di menu Kategori sebelum digunakan saat impor. Format lama dengan kategori Beras/Minyak/Gula
+dan jenis lama yang dikenali otomatis dipetakan menjadi label dan kategori utama.
+Kode produk yang sudah ada tetap ditolak sehingga impor tidak menimpa stok.
 
-Halaman Kategori menampilkan nama sebagai teks biasa. Form tambah dan pengubahan
-nama dihapus; admin hanya mengatur status aktif/nonaktif lalu Simpan. Request dari
-form Tambah versi lama diarahkan kembali dengan pemberitahuan tanpa membuat data
-duplikat. Dropdown pemilihan kategori di form produk tetap tersedia.
+Untuk database lama, jalankan `python -m app.cli migrate-labels` sebelum restart
+aplikasi. Migrasi menambahkan kolom label, membuat lima kategori utama jika belum
+ada, dan memetakan kategori lama yang aktif. Kategori lama dinonaktifkan setelah
+dipindahkan; kategori lama yang sudah nonaktif dibiarkan untuk menjaga visibilitas.
+Kategori khusus lain tidak dipetakan sembarangan. Migrasi tidak mengubah stok,
+harga, pesanan, transaksi, atau audit dan aman dijalankan ulang.
+
+
+## Pemisahan halaman admin dan pembeli
+
+Katalog, Keranjang, tambah/ubah keranjang dan pembuatan pesanan khusus role anggota (pembeli). Menu tersebut disembunyikan dari admin dan akses langsung GET/POST oleh admin ditolak 403. Admin melihat barang melalui Produk dan tetap dapat memproses pesanan melalui Pesanan, Transaksi dan Laporan.
+
+## Kategori dan kode produk otomatis
+
+Admin dapat menambah kategori melalui nama, status aktif, dan awalan kode opsional.
+Awalan terdiri dari tiga huruf unik. Jika kosong, sistem membuatnya dari nama kategori.
+Nama kategori pada daftar tetap berupa teks; statusnya dapat diubah melalui Simpan.
+
+| Kategori utama | Awalan | Contoh |
+| --- | --- | --- |
+| Bahan pokok | BPK | BPK001 |
+| Perawatan | PRW | PRW001 |
+| Makanan ringan | MKR | MKR001 |
+| Minuman | MNM | MNM001 |
+| Kesehatan | SHT | SHT001 |
+
+Pada Tambah produk, pilih kategori untuk mengisi pratinjau Kode produk secara otomatis.
+Kode tidak dapat diketik manual. Server mengalokasikan nomor final secara atomik saat
+menyimpan, dengan row lock kategori dan counter dalam transaksi yang sama. Pratinjau
+tidak memesan nomor. Nomor minimal tiga digit, dapat bertambah setelah 999 dan tidak
+dipakai ulang ketika produk diarsipkan. Mengedit tanpa mengganti kategori mempertahankan
+kode; perpindahan kategori menghasilkan kode baru sesuai kategori tujuan.
+
+Untuk database lama jalankan `python -m app.cli migrate-codes` sebelum restart aplikasi.
+Migrasi menambah code_prefix/code_counter pada kategori dan source_code unik pada produk,
+lalu mengubah kode produk tanpa mengganti ID, harga, stok, foto, status, transaksi atau audit.
+Snapshot kode/nama/harga pada order_lines tetap menjadi riwayat saat pesanan dibuat.
+Kode lama disimpan sebagai referensi anti-duplikat, sehingga impor ulang Excel lama tetap
+ditolak tanpa menimpa stok. Migrasi aman dijalankan ulang. `init-db` menyertakan migrasi ini.
+
+Header Excel tetap memiliki kolom kode: nilainya adalah referensi asal untuk anti-duplikat,
+sedangkan kode yang ditampilkan aplikasi dihasilkan sesuai kategori. Kategori utama yang
+belum ada dapat dibuat saat impor; kategori kustom harus ditambahkan di menu Kategori dahulu.
+
+
+## Label dropdown dan pencarian Produk
+
+Pada Tambah/Edit produk, Label dipilih dari dropdown berdasarkan nilai label unik
+yang sudah tersimpan di data produk, termasuk produk arsip. Backend menolak label
+di luar pilihan tersebut. Jika belum ada label, impor data produk terlebih dahulu;
+tidak ada label baru yang dibuat hanya dengan mengetik pada form ini.
+
+Menu Produk memiliki pencarian nama/kode/label dan filter kategori dropdown yang dapat
+digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip untuk
+keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
+dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
+mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+## Tugas 2: keranjang anggota
+
+Keranjang menampilkan foto, kategori, harga satuan, stok, jumlah, subtotal dan total.
+Tombol Hapus bekerja per barang, termasuk barang yang dinonaktifkan atau kehabisan stok.
+Jumlah 0 juga menghapus barang saat diperbarui. Ringkasan berubah saat jumlah diketik;
+server tetap menghitung harga dan total final. Checkout membaca jumlah terbaru langsung
+dari formulir sehingga tidak perlu menekan Perbarui terlebih dahulu.
+
+Perubahan keranjang divalidasi seluruhnya sebelum disimpan. Jika stok berubah atau barang
+nonaktif, keranjang tetap tersedia dengan pesan kesalahan dan tidak ada pesanan parsial.
+Submit ulang token pesanan yang sama tidak membuat pesanan kedua. Stok tidak berkurang
+saat checkout; snapshot harga tetap dibuat di server saat pesanan berhasil dibuat.
+
+Verifikasi 17 November 2026: 44 tes lulus, mencakup 41 tes SQLite/HTTP dan 3 tes integrasi
+konkurensi MariaDB XAMPP pada database uji khusus. MySQL 8 belum diuji. Smoke test browser
+halaman keranjang kosong berhasil; keranjang berisi barang dan tampilan HP belum diverifikasi
+secara visual pada perubahan ini. Satu warning deprecation Starlette/httpx.
+
+## Integrasi cipa terbaru — 17 November 2026
+
+Branch sumber origin/cipa adc656a digabung ke Octavian lokal dengan mempertahankan
+keranjang Tugas 2. Konflik sidebar dan CSS diselesaikan; CSS profil ditempatkan di luar
+media query katalog, dan cache CSS diperbarui. Validasi email profil mengikuti kolom
+190 karakter dan format email; password baru dibatasi 8–128 karakter.
+
+Verifikasi: 43 tes SQLite/HTTP lulus. Percobaan awal 3 tes MariaDB error karena koneksi
+terputus dan layanan XAMPP berhenti. Setelah pengguna menjalankan kembali layanan,
+3 tes MariaDB diulang dan lulus (3.29 detik). Ini bukan pengujian MySQL 8. Halaman login
+berhasil dibuka di browser; smoke test akun anggota/profil setelah login masih perlu
+pengguna masuk sendiri. Tidak ada perubahan profil atau password akun nyata oleh agen.
+
+Pekerjaan lanjutan: Transaksi Saya belum tersedia di cipa; Pesanan masih menggunakan
+nama umum dan belum memiliki pembatalan mandiri anggota. Profil cipa mengubah nama,
+email dan password, belum menyediakan telepon/alamat/nomor anggota. Progres luthfi
+terlihat pada fetch tetapi belum digabung karena permintaan saat ini mengambil cipa.
+Tidak ada push remote pada integrasi ini.
+
+### Pembayaran tunai hasil integrasi luthfi
+
+Admin dapat mencatat uang diterima dan kembalian pada Transaksi. Jalankan `python -m app.cli init-db`
+atau `python -m app.cli migrate-payments` untuk database lama; migrasi hanya menambah kolom.
+Pembayaran tidak mengubah stok atau snapshot. Pembatalan pesanan terkonfirmasi tetap membuat
+transaksi tidak valid untuk analisis dan mengembalikan stok tepat sekali. Catatan uang diterima
+historis tetap ada; belum tersedia pencatatan pengembalian uang.
+
+
+## Penyelesaian fitur anggota (17 November 2026)
+
+| Bagian | Hasil |
+| --- | --- |
+| Tugas 1: akun/katalog/dashboard | Daftar dengan error inline, input non-password dipertahankan, email duplikat spesifik, dashboard jumlah pesanan pribadi, navigasi aktif |
+| Tugas 2: keranjang | Foto, ubah/hapus, total langsung, checkout memakai jumlah terbaru, validasi seluruh barang, token anti-duplikasi; smoke tambah/ubah/hapus berhasil |
+| Tugas 3: pesanan/transaksi | Pesanan Saya dengan filter status dan 20 entri/halaman; pembatalan mandiri hanya Menunggu konfirmasi; Transaksi Saya privat, snapshot, status, nominal tunai/kembalian dan riwayat void |
+| Profil | Nomor anggota/role hanya dilihat, edit nama/email/telepon/alamat, password lama dan konfirmasi untuk perubahan password; input non-password tetap pada error |
+| Kinerja | Kategori produk dan rincian riwayat dimuat bersama untuk menghindari query per kartu/baris; query keranjang mengambil semua produk sekaligus |
+
+Pembatalan anggota dan konfirmasi admin mengunci baris pesanan yang sama, sehingga hanya
+status terbaru yang dipakai. Pembayaran/pembatalan mengunci order kemudian sale dengan
+urutan konsisten. Stok, snapshot dan empat status PRD tetap dipertahankan.
+
+Batas saat ini: pengembalian uang belum dicatat sebagai proses terpisah. Transaksi dibatalkan
+yang sebelumnya dibayar menampilkan instruksi menghubungi koperasi, sambil mempertahankan
+catatan pembayaran historis. Ini tidak mengubah aturan stok/analisis dan tidak menambah gateway.

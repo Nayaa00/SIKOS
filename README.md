@@ -67,7 +67,7 @@ python -m uvicorn app.main:app --reload
 3. Kategori: tambah/edit/aktifkan/nonaktifkan kategori.
 4. Produk: tambah/edit data produk. Stok awal masuk catatan stok. Untuk gambar opsional, isi URL HTTPS gambar.
 5. Persediaan: catat masuk/keluar dengan alasan. Stok negatif ditolak. Audit mencatat pelaku dan stok sesudah perubahan.
-6. Impor Excel: unduh template, isi dan unggah. Header wajib `kode,nama,kategori,harga,stok,satuan`, deskripsi opsional. Kolom boleh beda urutan. Harga rupiah bulat, stok integer nonnegatif. Maksimal 5.000 baris / 10 MB. Ubah formula menjadi nilai.
+6. Impor Excel: unduh template, isi dan unggah. Header wajib `kode,nama,label,kategori,harga,stok,satuan`, deskripsi opsional. Kolom boleh beda urutan. Harga rupiah bulat, stok integer nonnegatif. Maksimal 5.000 baris / 10 MB. Ubah formula menjadi nilai.
 7. Pesanan: konfirmasi pesanan anggota. Konfirmasi mengurangi stok tepat sekali dan mencatat transaksi. Selesaikan setelah barang diserahkan.
 8. Pembatalan sebelum konfirmasi tidak memengaruhi stok. Pembatalan setelah konfirmasi mengembalikan stok tepat sekali dan membatalkan validitas transaksi. Pesanan Selesai tidak dapat dibatalkan pada versi ini.
 9. Transaksi menampilkan catatan valid/batal. Laporan hanya menghitung transaksi valid dari tanggal konfirmasi.
@@ -78,7 +78,10 @@ python -m uvicorn app.main:app --reload
 2. Cari produk atau pilih kategori di katalog. Produk habis ditandai.
 3. Masukkan barang ke keranjang. Ubah jumlah, klik Perbarui keranjang. Isi 0 untuk menghapus baris.
 4. Klik Buat pesanan. Harga snapshot disimpan, stok belum dikurangi sampai konfirmasi admin.
-5. Lihat status dan rincian pesanan sendiri melalui Pesanan.
+5. Dashboard menampilkan jumlah pesanan pribadi per status. Buka Pesanan Saya untuk melihat rincian, filter status dan halaman riwayat (20 pesanan per halaman).
+6. Anggota dapat membatalkan pesanan sendiri yang masih Menunggu konfirmasi. Setelah admin memprosesnya, pembatalan oleh anggota ditolak. Pembatalan menunggu tidak mengubah stok.
+7. Transaksi Saya menampilkan transaksi milik akun sendiri setelah dikonfirmasi, rincian harga saat pesan, pembayaran tunai dan kembalian. Transaksi dibatalkan tetap terlihat sebagai riwayat dan tidak dihitung dalam penjualan.
+8. Profile menampilkan nomor anggota dan role tetap; nama, email, telepon dan alamat dapat diperbarui. Ubah password membutuhkan password lama dan konfirmasi password baru. Kesalahan form mempertahankan input non-password.
 
 ## Demonstrasi yang disarankan
 
@@ -105,7 +108,7 @@ Test memakai SQLite sementara agar cepat dijalankan tanpa mengubah data MySQL. P
 - Keranjang belum mereservasi stok. Stok diperiksa saat pesan dan saat konfirmasi. Jika stok sudah habis ketika admin mengonfirmasi, seluruh konfirmasi ditolak.
 - Impor kode duplikat ditolak, tidak memperbarui barang/stok yang telah ada. Gunakan Edit atau catatan stok masuk untuk barang lama. File Excel sistem sebelumnya belum disediakan, jadi format header spesifik belum dipetakan.
 - Data transaksi/audit tidak dihapus. Master data menggunakan soft delete.
-- Pada prototipe ini semua daftar dimuat untuk skala praktikum. Riwayat stok menampilkan 300 entri terbaru. Pagination dapat ditambahkan jika data uji besar.
+- Pesanan dan Transaksi Saya dibatasi 20 entri per halaman. Produk dan daftar master masih dimuat untuk skala praktikum. Riwayat stok menampilkan 300 entri terbaru.
 - Bootstrap/Chart.js dari CDN memerlukan internet untuk grafik. Tabel/form dasar memakai CSS lokal. Smoke test navigasi/empty state dan grafik telah dilakukan di browser lokal; lihat docs/HASIL_UJI.md.
 - Proyek untuk demonstrasi lokal. Untuk deployment publik perlu HTTPS, COOKIE_SECURE=1, konfigurasi server dan manajemen secret, rate limiting login, serta pengujian tambahan.
 
@@ -149,13 +152,82 @@ menjatuhkan tabel/database; hanya membuat tabel yang belum ada dan membersihkan
 baris fixture miliknya. Database uji harus sudah dibuat lebih dahulu.
 
 
-## Akses pembeli dan pengaturan kategori
+## Label dan kategori produk
 
-Katalog, Keranjang dan pembuatan pesanan khusus anggota/pembeli. Menu tersebut
-tidak ditampilkan kepada admin dan akses langsung GET/POST ditolak 403. Admin
-tetap mengelola barang melalui Produk dan memproses Pesanan/Transaksi/Laporan.
+Kategori utama: Bahan pokok, Perawatan, Makanan ringan, Minuman, Kesehatan.
+Label menjelaskan jenis yang lebih spesifik, misalnya Beras, Sabun mandi atau Teh.
+Pencarian katalog memakai nama atau label, bukan kode; filter kategori tetap ada.
+Template Excel baru memuat `kode,nama,label,kategori,harga,stok,satuan,deskripsi`.
+Kategori kustom harus dibuat di menu Kategori sebelum digunakan saat impor. Format lama dengan kategori Beras/Minyak/Gula
+dan jenis lama yang dikenali otomatis dipetakan menjadi label dan kategori utama.
+Kode produk yang sudah ada tetap ditolak sehingga impor tidak menimpa stok.
 
-Halaman Kategori menampilkan nama sebagai teks biasa. Form tambah dan pengubahan
-nama dihapus; admin hanya mengatur status aktif/nonaktif lalu Simpan. Request dari
-form Tambah versi lama diarahkan kembali dengan pemberitahuan tanpa membuat data
-duplikat. Dropdown pemilihan kategori di form produk tetap tersedia.
+Untuk database lama, jalankan `python -m app.cli migrate-labels` sebelum restart
+aplikasi. Migrasi menambahkan kolom label, membuat lima kategori utama jika belum
+ada, dan memetakan kategori lama yang aktif. Kategori lama dinonaktifkan setelah
+dipindahkan; kategori lama yang sudah nonaktif dibiarkan untuk menjaga visibilitas.
+Kategori khusus lain tidak dipetakan sembarangan. Migrasi tidak mengubah stok,
+harga, pesanan, transaksi, atau audit dan aman dijalankan ulang.
+
+## Foto dan kartu produk
+
+Menu Produk memakai CardView. Foto ilustrasi lokal dipilih sesuai nama produk; gambar HTTPS khusus bisa diisi di form Edit. Kosongkan gambar untuk memakai foto otomatis. Sumber dan lisensi tersedia melalui tautan Sumber foto di halaman Produk/Katalog dan file app/static/products/credits.html. Penghapusan tetap berupa arsip agar riwayat stok dan transaksi terjaga.
+
+
+## Pemisahan halaman admin dan pembeli
+
+Katalog, Keranjang, tambah/ubah keranjang dan pembuatan pesanan khusus role anggota (pembeli). Menu tersebut disembunyikan dari admin dan akses langsung GET/POST oleh admin ditolak 403. Admin melihat barang melalui Produk dan tetap dapat memproses pesanan melalui Pesanan, Transaksi dan Laporan.
+
+## Kategori dan kode produk otomatis
+
+Admin dapat menambah kategori melalui nama, status aktif, dan awalan kode opsional.
+Awalan terdiri dari tiga huruf unik. Jika kosong, sistem membuatnya dari nama kategori.
+Nama kategori pada daftar tetap berupa teks; statusnya dapat diubah melalui Simpan.
+
+| Kategori utama | Awalan | Contoh |
+| --- | --- | --- |
+| Bahan pokok | BPK | BPK001 |
+| Perawatan | PRW | PRW001 |
+| Makanan ringan | MKR | MKR001 |
+| Minuman | MNM | MNM001 |
+| Kesehatan | SHT | SHT001 |
+
+Pada Tambah produk, pilih kategori untuk mengisi pratinjau Kode produk secara otomatis.
+Kode tidak dapat diketik manual. Server mengalokasikan nomor final secara atomik saat
+menyimpan, dengan row lock kategori dan counter dalam transaksi yang sama. Pratinjau
+tidak memesan nomor. Nomor minimal tiga digit, dapat bertambah setelah 999 dan tidak
+dipakai ulang ketika produk diarsipkan. Mengedit tanpa mengganti kategori mempertahankan
+kode; perpindahan kategori menghasilkan kode baru sesuai kategori tujuan.
+
+Untuk database lama jalankan `python -m app.cli migrate-codes` sebelum restart aplikasi.
+Migrasi menambah code_prefix/code_counter pada kategori dan source_code unik pada produk,
+lalu mengubah kode produk tanpa mengganti ID, harga, stok, foto, status, transaksi atau audit.
+Snapshot kode/nama/harga pada order_lines tetap menjadi riwayat saat pesanan dibuat.
+Kode lama disimpan sebagai referensi anti-duplikat, sehingga impor ulang Excel lama tetap
+ditolak tanpa menimpa stok. Migrasi aman dijalankan ulang. `init-db` menyertakan migrasi ini.
+
+Header Excel tetap memiliki kolom kode: nilainya adalah referensi asal untuk anti-duplikat,
+sedangkan kode yang ditampilkan aplikasi dihasilkan sesuai kategori. Kategori utama yang
+belum ada dapat dibuat saat impor; kategori kustom harus ditambahkan di menu Kategori dahulu.
+
+
+## Label dropdown dan pencarian Produk
+
+Pada Tambah/Edit produk, Label dipilih dari dropdown berdasarkan nilai label unik
+yang sudah tersimpan di data produk, termasuk produk arsip. Backend menolak label
+di luar pilihan tersebut. Jika belum ada label, impor data produk terlebih dahulu;
+tidak ada label baru yang dibuat hanya dengan mengetik pada form ini.
+
+Menu Produk memiliki pencarian nama/kode/label dan filter kategori dropdown yang dapat
+digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip untuk
+keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
+dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
+mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+### Keranjang anggota (Tugas 2)
+
+Keranjang sekarang memiliki foto barang, tombol Hapus per barang dan ringkasan belanja.
+Ubah jumlah lalu klik Perbarui keranjang, atau langsung Buat pesanan untuk memakai jumlah
+terbaru. Total pada layar mengikuti input; server memeriksa ulang harga, ketersediaan dan stok.
+Jika stok berubah atau barang nonaktif, sesuaikan jumlah atau hapus barang sebelum melanjutkan.
+Checkout tidak mengurangi stok. Pesanan menunggu konfirmasi admin.

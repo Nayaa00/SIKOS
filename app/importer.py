@@ -1,16 +1,20 @@
 from io import BytesIO
 import pandas as pd
 from openpyxl import load_workbook
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from .models import Product,Category
 from .services import RuleError,integer,text,code,movement
+
+from .taxonomy import classify_import, CATEGORIES
+from .product_codes import next_product_code
 
 REQUIRED=['kode','nama','kategori','harga','stok','satuan']
 def load_rows(raw):
     try:
         book=load_workbook(BytesIO(raw),read_only=True,data_only=False)
         sheet=book.active
+        if sheet.max_row is None or sheet.max_column is None: sheet.calculate_dimension(force=True)
         if sheet.max_row>5001 or sheet.max_column>30:raise RuleError('Maksimal 5.000 baris dan 30 kolom.')
         iterator=sheet.iter_rows(values_only=True)
         header=[str(v or '').strip().lower() for v in next(iterator)]
@@ -37,14 +41,16 @@ def save_rows(db,frame,actor):
             sku=code(row.get('kode'))
             if sku in seen:raise RuleError('Kode produk duplikat di file.')
             seen.add(sku)
-            name=text(row.get('nama'),'Nama');category_name=text(row.get('kategori'),'Kategori',100)
+            name=text(row.get('nama'),'Nama');category_name,label=classify_import(row.get('kategori'),row.get('label'))
             price=integer(row.get('harga'),'Harga');stock=integer(row.get('stok'),'Stok',True);unit=text(row.get('satuan'),'Satuan',30)
-            if db.scalar(select(Product.id).where(Product.kode==sku)):raise RuleError('Kode sudah ada di database. Gunakan edit produk atau stok masuk.')
+            if db.scalar(select(Product.id).where(or_(Product.kode==sku,Product.source_code==sku))):raise RuleError('Kode sudah ada di database. Gunakan edit produk atau stok masuk.')
             with db.begin_nested():
                 category=db.scalar(select(Category).where(Category.nama==category_name))
                 if category and not category.active:raise RuleError('Kategori tersebut nonaktif.')
-                if category is None:category=Category(nama=category_name);db.add(category);db.flush()
-                product=Product(kode=sku,nama=name,category_id=category.id,harga=price,stok=0,satuan=unit,deskripsi=str(row.get('deskripsi',''))[:5000],gambar='')
+                if category is None:
+                    if category_name not in CATEGORIES:raise RuleError('Kategori belum tersedia. Tambahkan melalui menu Kategori terlebih dahulu.')
+                    category=Category(nama=category_name);db.add(category);db.flush()
+                product=Product(kode=next_product_code(db,category.id),source_code=sku,nama=name,label=label,category_id=category.id,harga=price,stok=0,satuan=unit,deskripsi=str(row.get('deskripsi',''))[:5000],gambar='')
                 db.add(product);db.flush();movement(db,product,stock,actor,'Stok awal impor Excel')
             result['success']+=1
         except (RuleError,IntegrityError) as exc:

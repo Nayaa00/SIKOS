@@ -1,0 +1,112 @@
+ {% extends "base.html" %} {% block content %}
+
+
+
+<div class="profile-page">
+
+    <div class="profile-heading">
+        <h1>Profil Saya</h1>
+        <p>Kelola informasi akun anggota koperasi kamu.</p>
+    </div>
+
+    {% if error %}
+    <div class="profile-alert profile-error" role="alert">
+        {{ error }}
+    </div>
+    {% endif %} {% if success %}
+    <div class="profile-alert profile-success">
+        {{ success }}
+    </div>
+    {% endif %}
+
+    <div class="profile-card">
+
+        <!-- IDENTITAS ANGGOTA -->
+        <div class="profile-user">
+            <div class="profile-avatar">
+                {{ user.nama[0]|upper }}
+            </div>
+
+            <div class="profile-user-info">
+                <h3>{{ user.nama }}</h3>
+                <span>Anggota Koperasi SIKOS</span>
+            </div>
+        </div>
+
+        <form method="post" action="/profil">
+
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+
+            <!-- INFORMASI PRIBADI -->
+            <section class="profile-section">
+
+                <div class="profile-section-heading">
+                    <h3>Informasi Pribadi</h3>
+                    <p>Perbarui informasi dasar akun kamu.</p>
+                </div>
+
+                <div class="profile-form">
+
+                    <div class="profile-field">
+                        <label for="nama">Nama Lengkap</label>
+                        <input id="nama" type="text" name="nama" value="{{ values.nama }}" maxlength="150" autocomplete="name" required>
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="email">Alamat Email</label>
+                        <input id="email" type="email" name="email" value="{{ values.email }}" maxlength="190" autocomplete="email" required>
+                    </div>
+
+                    <div class="profile-field"><label for="nomor">Nomor anggota</label><input id="nomor" type="text" value="{{ user.nomor }}" disabled><small>Nomor anggota tetap dan dikelola koperasi.</small></div>
+                    <div class="profile-field"><label for="telepon">Nomor telepon</label><input id="telepon" type="tel" name="telepon" value="{{ values.telepon }}" maxlength="30" autocomplete="tel" required></div>
+                    <div class="profile-field"><label for="alamat">Alamat</label><textarea id="alamat" name="alamat" maxlength="2000" autocomplete="street-address" required>{{ values.alamat }}</textarea></div>
+
+                </div>
+            </section>
+
+            <div class="profile-divider"></div>
+
+            <!-- KEAMANAN AKUN -->
+            <section class="profile-section">
+
+                <div class="profile-section-heading">
+                    <h3>Keamanan Akun</h3>
+                    <p>Kosongkan bagian password jika tidak ingin menggantinya.</p>
+                </div>
+
+                <div class="profile-form">
+
+                    <div class="profile-field">
+                        <label for="password_lama">Password Lama</label>
+                        <input id="password_lama" type="password" name="password_lama" autocomplete="current-password" placeholder="Masukkan password lama">
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="password_baru">Password Baru</label>
+                        <input id="password_baru" type="password" name="password_baru" maxlength="128" minlength="8" autocomplete="new-password" placeholder="Minimal 8 karakter">
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="konfirmasi_password">Konfirmasi Password Baru</label>
+                        <input id="konfirmasi_password" type="password" name="konfirmasi_password" maxlength="128" autocomplete="new-password" placeholder="Ulangi password baru">
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- ACTIONS -->
+            <div class="profile-actions">
+                <button type="reset" class="profile-reset">
+                    Reset
+                </button>
+
+                <button type="submit" class="profile-save">
+                    Simpan Perubahan
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+{% endblock %}

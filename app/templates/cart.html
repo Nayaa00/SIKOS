@@ -1,1 +1,23 @@
-{% extends 'base.html' %}{% block content %}<span class="eyebrow">PEMESANAN</span><h1>Keranjang belanja</h1><p class="muted">Harga dan stok diperiksa ulang saat pesanan dibuat. Stok dikurangi setelah admin mengonfirmasi.</p>{% if rows %}<div class="card"><form method="post" action="/keranjang/ubah"><input type="hidden" name="csrf" value="{{ csrf }}"><table><tr><th>Barang</th><th>Harga</th><th>Jumlah</th><th>Subtotal</th></tr>{% for row in rows %}<tr><td>{{ row.product.nama }}</td><td>{{ row.product.harga|rupiah }}</td><td><input class="qty" name="qty_{{ row.product.id }}" type="number" min="0" max="{{ row.product.stok }}" value="{{ row.qty }}" aria-label="Jumlah {{ row.product.nama }}"></td><td>{{ row.subtotal|rupiah }}</td></tr>{% endfor %}</table><p class="small-note mt-3">Isi jumlah 0 untuk menghapus barang. Klik Perbarui sebelum membuat pesanan jika mengubah jumlah.</p><button class="btn-light">Perbarui keranjang</button></form><p class="checkout-total mt-4">Total {{ total|rupiah }}</p><form method="post" action="/pesanan/buat" style="text-align:right"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="token" value="{{ token }}"><button>Buat pesanan</button></form></div>{% else %}<div class="card empty">Keranjang kosong. <a href="/katalog">Pilih barang</a></div>{% endif %}{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<section class="cart-heading"><div><span class="eyebrow">PEMESANAN</span><h1>Keranjang belanja</h1><p class="muted">Periksa barang sebelum membuat pesanan.</p></div><a class="btn btn-light" href="/katalog">Lanjut belanja</a></section>
+{% if error %}<div class="notice cart-warning" role="alert">{{ error }}</div>{% endif %}
+{% if rows %}
+<form method="post" action="/keranjang/ubah" id="cart-form">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="token" value="{{ token }}">
+<div class="cart-layout"><section class="cart-items" aria-label="Barang dalam keranjang">
+{% for row in rows %}{% set p=row.product %}
+<article class="card cart-item">
+<img src="{{ p|product_image }}" data-fallback="{{ p|default_product_image }}" alt="{{ p.nama }}" class="cart-photo">
+<div class="cart-details"><span class="pill">{{ p.category.nama }}</span><h2>{{ p.nama }}</h2><p class="muted">{{ p.label }} · {{ p.harga|rupiah }} / {{ p.satuan }}</p>
+{% if not p.active or not p.category.active %}<p class="cart-warning">Barang tidak tersedia. Hapus untuk melanjutkan.</p>{% elif row.qty > p.stok %}<p class="cart-warning">Stok berubah. Tersedia {{ p.stok }} {{ p.satuan }}. Sesuaikan jumlah atau hapus barang.</p>{% else %}<p class="small-note">Stok tersedia {{ p.stok }} {{ p.satuan }}</p>{% endif %}
+<label for="qty-{{ p.id }}">Jumlah</label><div class="cart-controls"><input id="qty-{{ p.id }}" class="qty" name="qty_{{ p.id }}" type="number" min="0" max="{{ p.stok }}" value="{{ row.qty }}" required data-price="{{ p.harga }}" aria-label="Jumlah {{ p.nama }}"><span>{{ p.satuan }}</span><button class="btn-light cart-remove" type="submit" form="remove-{{ p.id }}">Hapus</button></div></div>
+<strong class="cart-subtotal" data-subtotal="{{ p.id }}">{{ row.subtotal|rupiah }}</strong>
+</article>{% endfor %}
+<p class="small-note">Jumlah 0 menghapus barang saat diperbarui. Harga dan stok diperiksa kembali saat checkout.</p><button type="submit" class="btn-light">Perbarui keranjang</button>
+</section><aside class="card cart-summary"><h2>Ringkasan belanja</h2><p>{{ rows|length }} jenis barang · <span id="cart-units">{{ rows|sum(attribute='qty') }}</span> unit</p><div class="cart-total"><span>Total</span><strong id="cart-total">{{ total|rupiah }}</strong></div><p class="small-note">Stok belum dipesan khusus untuk Anda. Stok berkurang hanya setelah admin mengonfirmasi pesanan.</p><button type="submit" formaction="/pesanan/buat" {% if not can_checkout %}disabled{% endif %}>Buat pesanan</button>{% if not can_checkout %}<p class="cart-warning">Perbarui atau hapus barang yang tidak tersedia dahulu.</p>{% endif %}<p class="small-note">Jumlah terbaru ikut disimpan saat membuat pesanan. Harga dikunci ketika pesanan berhasil dibuat.</p></aside></div>
+</form>
+{% for row in rows %}<form id="remove-{{ row.product.id }}" method="post" action="/keranjang/hapus"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="product_id" value="{{ row.product.id }}"></form>{% endfor %}
+{% else %}<section class="card cart-empty"><span class="eyebrow">MULAI BELANJA</span><h2>Keranjang masih kosong</h2><p class="muted">Pilih kebutuhan Anda dari katalog koperasi.</p><a class="btn" href="/katalog">Jelajahi katalog</a></section>{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/cart.js" defer></script>{% endblock %}

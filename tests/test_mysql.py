@@ -37,6 +37,12 @@ def mysql_store():
         if not is_mariadb and int(version.split('.')[0]) < 8:
             pytest.fail('Diperlukan MySQL 8 atau lebih baru.')
     Base.metadata.create_all(engine)
+    from app.migrations import migrate_product_labels
+    migrate_product_labels(engine)
+    from app.code_migration import migrate_product_codes
+    migrate_product_codes(engine)
+    from app.migrations import migrate_sale_payments
+    migrate_sale_payments(engine)
     with engine.connect() as connection:
         engines = connection.execute(text(
             'SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES '
@@ -151,3 +157,84 @@ def test_mysql_atomic_confirmation_snapshot_and_void(mysql_store):
         assert db.get(Product, q).stok == 10
         for kind in ('harian', 'mingguan', 'bulanan', 'tahunan'):
             assert not any(row['pesanan'] == order.kode for row in analyze(db, kind, day)['rows'])
+
+
+def test_mysql_parallel_product_code_allocation(mysql_store):
+    from app.product_codes import next_product_code,choose_prefix
+    factory,(_,_,pid,_)=mysql_store
+    with factory() as db:
+        category=db.get(Product,pid).category
+        category.code_prefix=choose_prefix(category.nama,set(db.scalars(select(Category.code_prefix).where(Category.code_prefix.is_not(None)))))
+        db.commit();cid=category.id
+    barrier=Barrier(2)
+    def worker(_):
+        with factory() as db:
+            barrier.wait(timeout=10)
+            value=next_product_code(db,cid)
+            product=Product(kode=value,nama='Produk paralel',category_id=cid,harga=1000,stok=0,satuan='pak')
+            db.add(product);db.commit()
+            return product.id,value
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        created=list(pool.map(worker,range(2)))
+    try:
+        assert len({value for _,value in created})==2
+        assert sorted(int(value[3:]) for _,value in created)==[1,2]
+    finally:
+        with factory() as db:
+            db.execute(delete(Product).where(Product.id.in_([pid for pid,_ in created])))
+            db.commit()
+
+def test_mysql_member_cancel_races_admin_confirmation(mysql_store):
+    from app.services import cancel_member_order
+    factory,ids=mysql_store
+    admin,member,pid,_=ids
+    with factory() as db:
+        order=create_order(db,member,{str(pid):1},uuid4().hex);db.commit();oid=order.id
+    barrier=Barrier(2)
+    def worker(member_cancel):
+        with factory() as db:
+            db.get(Order,oid);db.commit();barrier.wait(timeout=10)
+            try:
+                if member_cancel:cancel_member_order(db,oid,member)
+                else:transition(db,oid,'Dikonfirmasi',admin)
+                db.commit();return 'ok'
+            except RuleError:
+                db.rollback();return 'rejected'
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures=[executor.submit(worker,value) for value in (True,False)]
+        results=[future.result(timeout=30) for future in futures]
+    assert sorted(results)==['ok','rejected']
+    with factory() as db:
+        order=db.get(Order,oid);product=db.get(Product,pid)
+        count=db.scalar(select(func.count()).select_from(Sale).where(Sale.order_id==oid))
+        if order.status=='Dibatalkan':assert product.stok==1 and count==0
+        else:assert order.status=='Dikonfirmasi' and product.stok==0 and count==1
+
+def test_mysql_payment_races_cancellation(mysql_store):
+    from app.services import record_payment
+    factory,ids=mysql_store
+    admin,member,pid,_=ids
+    with factory() as db:
+        order=create_order(db,member,{str(pid):1},uuid4().hex)
+        transition(db,order.id,'Dikonfirmasi',admin);db.commit()
+        oid=order.id;sid=db.scalar(select(Sale.id).where(Sale.order_id==oid))
+    barrier=Barrier(2)
+    def worker(payment):
+        with factory() as db:
+            db.get(Order,oid);db.commit();barrier.wait(timeout=10)
+            try:
+                if payment:record_payment(db,sid,10000)
+                else:transition(db,oid,'Dibatalkan',admin)
+                db.commit();return 'ok'
+            except RuleError:
+                db.rollback();return 'rejected'
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures=[executor.submit(worker,value) for value in (True,False)]
+        results=[future.result(timeout=30) for future in futures]
+    assert results[1]=='ok'
+    with factory() as db:
+        assert db.get(Order,oid).status=='Dibatalkan'
+        assert db.get(Product,pid).stok==1
+        sale=db.get(Sale,sid);assert not sale.valid
+        assert sale.jumlah_bayar==(10000 if results[0]=='ok' else 0)
+        assert db.scalar(select(func.count()).select_from(StockMovement).where(StockMovement.order_id==oid))==2
