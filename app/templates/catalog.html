@@ -1,1 +1,199 @@
-{% extends 'base.html' %}{% block content %}<div class="hero"><div><span class="eyebrow">KATALOG ANGGOTA</span><h1>Kebutuhan harian, lebih dekat.</h1><p class="muted">Pilih sembako, masukkan keranjang, lalu buat pesanan.</p></div><a href="/keranjang" class="btn">Buka keranjang</a></div><form method="get" class="toolbar"><input name="q" value="{{ query }}" placeholder="Cari nama atau label"><select name="kategori"><option value="">Semua kategori</option>{% for c in categories %}<option value="{{ c.id }}" {% if category==c.id|string %}selected{% endif %}>{{ c.nama }}</option>{% endfor %}</select><button>Cari</button></form><div class="products-grid">{% for p in products %}<div class="card product-card"><div class="product-image"><img src="{{ p|product_image }}" alt="Foto {{ p.nama }}" loading="lazy" data-fallback="{{ p|default_product_image }}"></div><span class="eyebrow">{{ p.category.nama }}</span><span class="pill">{{ p.label }}</span><h3>{{ p.nama }}</h3><small>{{ p.kode }}</small><div class="price">{{ p.harga|rupiah }}</div><p class="muted">{{ p.deskripsi }}</p><span class="pill">{{ (p.stok|string)~' '~p.satuan if p.stok else 'Stok habis' }}</span>{% if p.stok %}<form method="post" action="/keranjang/tambah"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="product_id" value="{{ p.id }}"><input type="number" name="qty" min="1" max="{{ p.stok }}" value="1" aria-label="Jumlah {{ p.nama }}"><button>+ Keranjang</button></form>{% endif %}</div>{% else %}<p class="empty">Belum ada produk yang cocok.</p>{% endfor %}</div><p class="small-note">Foto ilustrasi sesuai jenis produk. <a href="/static/products/credits.html">Sumber foto</a></p>{% endblock %}
+ {% extends 'base.html' %} {% block title %}Katalog Produk · SIKOS{% endblock %} {% block content %}
+
+<!-- ==============================
+     HEADER KATALOG
+============================== -->
+<section class="catalog-hero">
+    <div class="catalog-hero-content">
+        <div class="eyebrow">KATALOG ANGGOTA</div>
+
+        <h1>Kebutuhan harian, lebih dekat.</h1>
+
+        <p class="muted">
+            Pilih produk kebutuhanmu, masukkan ke keranjang, lalu buat pesanan dengan mudah.
+        </p>
+    </div>
+
+    <a href="/keranjang" class="btn catalog-cart-btn">
+        Buka Keranjang →
+    </a>
+</section>
+
+
+<!-- ==============================
+     PENCARIAN DAN FILTER
+============================== -->
+<form method="get" action="/katalog" class="catalog-filter">
+
+    <div class="catalog-search">
+        <input type="text" name="q" value="{{ query }}" placeholder="Cari nama atau label produk..." aria-label="Cari nama atau label produk">
+    </div>
+
+    <div class="catalog-category">
+        <select name="kategori" aria-label="Filter kategori">
+            <option value="">Semua Kategori</option>
+
+            {% for c in categories %}
+                <option
+                    value="{{ c.id }}"
+                    {% if category == c.id|string %}selected{% endif %}
+                >
+                    {{ c.nama }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="catalog-search-btn">
+        Cari Produk
+    </button> {% if query or category %}
+    <a href="/katalog" class="catalog-reset-btn">
+            Reset
+        </a> {% endif %}
+
+</form>
+
+
+<!-- ==============================
+     DAFTAR PRODUK
+============================== -->
+<div class="catalog-result-heading">
+    <div>
+        <div class="eyebrow">PRODUK KOPERASI</div>
+        <h2>Daftar Produk</h2>
+    </div>
+
+    <span class="catalog-result-count">
+        {{ products|length }} produk ditemukan
+    </span>
+</div>
+
+
+<section class="catalog-grid">
+
+    {% for p in products %}
+
+    <article class="catalog-card">
+
+        <!-- Foto dan kategori -->
+        <div class="catalog-product-image">
+            <img src="{{ p|product_image }}" alt="Foto {{ p.nama }}" loading="lazy" data-fallback="{{ p|default_product_image }}">
+
+            <span class="catalog-category-badge">
+                    {{ p.category.nama }}
+                </span> {% if p.stok == 0 %}
+            <span class="catalog-stock-badge">
+                        Stok Habis
+                    </span> {% endif %}
+        </div>
+
+
+        <!-- Informasi produk -->
+        <div class="catalog-product-body">
+
+            <div class="catalog-product-code">
+                {{ p.kode }}
+            </div>
+
+            <h3>{{ p.nama }}</h3>
+
+            {% if p.label %}
+            <span class="catalog-product-label">
+                        {{ p.label }}
+                    </span> {% endif %} {% if p.deskripsi %}
+            <p class="catalog-product-description">
+                {{ p.deskripsi }}
+            </p>
+            {% else %}
+            <p class="catalog-product-description catalog-no-description">
+                Produk kebutuhan koperasi
+            </p>
+            {% endif %}
+
+
+            <!-- Harga -->
+            <div class="catalog-product-price">
+                {{ p.harga|rupiah }}
+                <small>/ {{ p.satuan }}</small>
+            </div>
+
+
+            <!-- Stok -->
+            <div class="catalog-stock-info">
+                <span>Stok tersedia</span> {% if p.stok > 0 %}
+                <strong class="catalog-stock-available">
+                            {{ p.stok }} {{ p.satuan }}
+                        </strong> {% else %}
+                <strong class="catalog-stock-empty">
+                            Stok habis
+                        </strong> {% endif %}
+            </div>
+
+
+            <!-- Tombol keranjang -->
+            {% if p.stok > 0 %}
+
+            <form method="post" action="/keranjang/tambah" class="catalog-add-form">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+
+                <input type="hidden" name="product_id" value="{{ p.id }}">
+
+                <label class="catalog-qty-label">
+                            Jumlah
+
+                            <input
+                                type="number"
+                                name="qty"
+                                min="1"
+                                max="{{ p.stok }}"
+                                value="1"
+                                required
+                                aria-label="Jumlah {{ p.nama }}"
+                            >
+                        </label>
+
+                <button type="submit">
+                            + Keranjang
+                        </button>
+            </form>
+
+            {% else %}
+
+            <button type="button" class="catalog-disabled-btn" disabled>
+                        Stok Habis
+                    </button> {% endif %}
+
+        </div>
+    </article>
+
+    {% else %}
+
+    <!-- Tampilan ketika produk kosong -->
+    <div class="catalog-empty-state">
+
+        <div class="catalog-empty-icon">🛍️</div>
+
+        {% if query or category %}
+        <h3>Produk Tidak Ditemukan</h3>
+
+        <p>
+            Tidak ada produk yang sesuai dengan pencarian atau kategori ini. Coba gunakan kata kunci lain.
+        </p>
+
+        <a href="/katalog" class="btn catalog-main-btn">
+                    Tampilkan Semua Produk
+                </a> {% else %}
+        <h3>Belum Ada Produk</h3>
+
+        <p>
+            Belum ada produk yang tersedia di koperasi saat ini. Produk akan ditampilkan setelah admin menambahkannya.
+        </p>
+        {% endif %}
+
+    </div>
+
+    {% endfor %}
+
+</section>
+
+{% endblock %}

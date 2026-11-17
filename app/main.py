@@ -59,9 +59,12 @@ def admin(user:User=Depends(current)):
     if user.role!='admin': raise HTTPException(403,'Halaman ini khusus admin koperasi.')
     return user
 
+
 def buyer(user:User=Depends(current)):
-    if user.role!='anggota': raise HTTPException(403,'Halaman ini khusus anggota/pembeli koperasi.')
+    if user.role != 'anggota':
+        raise HTTPException(403, 'Halaman ini khusus pembeli koperasi.')
     return user
+
 
 @app.exception_handler(HTTPException)
 async def http_error(request,exc):
@@ -86,34 +89,66 @@ async def duplicate_error(request,exc):
 async def database_error(request,exc):
     response=page(request,'error.html',user=None,error='Database belum siap atau sedang sibuk. Periksa MySQL dan .env. Untuk transaksi yang gagal, muat ulang lalu coba lagi.');response.status_code=503;return response
 
-@app.get('/login',response_class=HTMLResponse)
-def login_page(request:Request):
-    return page(request,'login.html',user=None)
+@app.get('/login', response_class=HTMLResponse)
+def login_page(request: Request):
+    return page(request, 'login.html', user=None) 
+
+@app.post('/logout')
+async def logout(request: Request):
+    form = await request.form()
+    check_csrf(request, form)
+
+    request.session.clear()
+
+    return go('/login')
+
 
 @app.post('/login')
 async def login_submit(request:Request,db:Session=Depends(get_db)):
-    form=await request.form();check_csrf(request,form)
-    user=db.scalar(select(User).where(User.email==str(form.get('email','')).strip().lower()))
-    if user is None or not user.active or not verify_password(str(form.get('password','')),user.password_hash):
-        return page(request,'login.html',user=None,error='Email atau password salah, atau akun nonaktif.')
-    request.session.clear();request.session['uid']=user.id
-    return go('/')
+    form=await request.form()
+    check_csrf(request,form)
 
-@app.get('/daftar')
-def register_page(request:Request):
-    return page(request,'member_form.html',user=None,member=None,register=True)
+    user=db.scalar(
+        select(User).where(
+            User.email==str(form.get('email','')).strip().lower()
+        )
+    )
+
+    if user is None or not user.active or not verify_password(
+        str(form.get('password','')),user.password_hash
+    ):
+        return page(
+            request,
+            'login.html',
+            user=None,
+            error='Email atau password salah, atau akun nonaktif.'
+        )
+
+    request.session.clear()
+    request.session['uid']=user.id
+
+    if user.role=='admin':
+        return go('/')
+
+    return go('/anggota/dashboard')
+
 
 @app.post('/daftar')
 async def register_submit(request:Request,db:Session=Depends(get_db)):
-    form=await request.form();check_csrf(request,form)
-    member=User(nomor='AG-'+uuid4().hex[:12].upper(),role='anggota',active=True)
-    apply_member(member,form,new=True)
-    db.add(member);db.commit()
-    return go('/login',request,'Pendaftaran berhasil. Silakan login menggunakan email.')
+    form=await request.form()
+    check_csrf(request,form)
 
-@app.post('/logout')
-async def logout(request:Request):
-    form=await request.form();check_csrf(request,form);request.session.clear();return go('/login')
+    member=User(
+        nomor='AG-'+uuid4().hex[:12].upper(),
+        role='anggota',
+        active=True
+    )
+
+    apply_member(member,form,new=True)
+    db.add(member)
+    db.commit()
+
+    return go('/login',request,'Pendaftaran berhasil. Silakan login menggunakan email.')
 
 @app.get('/')
 def dashboard(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
@@ -128,16 +163,29 @@ def dashboard(request:Request,user:User=Depends(current),db:Session=Depends(get_
                 pending=db.scalar(select(func.count()).select_from(Order).where(Order.status=='Menunggu konfirmasi')))
 
 
-def apply_member(member,form,new=False):
-    member.nama=text(form.get('nama'),'Nama')
-    member.email=text(form.get('email'),'Email',190).lower()
-    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',member.email):raise RuleError('Format email tidak valid.')
-    member.telepon=text(form.get('telepon'),'Telepon',30)
-    member.alamat=text(form.get('alamat'),'Alamat',2000)
-    password=str(form.get('password',''))
-    if password or new:
-        if len(password)<8 or len(password)>128:raise RuleError('Password harus 8–128 karakter.')
-        member.password_hash=hash_password(password)
+
+def apply_member(member, form, new=False):
+    member.nama = text(form.get('nama'), 'Nama')
+    member.email = text(form.get('email'), 'Email', 190).lower()
+
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', member.email):
+        raise RuleError('Format email tidak valid.')
+
+    member.telepon = text(form.get('telepon'), 'Telepon', 30)
+    member.alamat = text(form.get('alamat'), 'Alamat', 2000)
+
+    password = str(form.get('password', ''))
+    password_confirm = str(form.get('password_confirm', ''))
+
+    if new or password:
+        if len(password) < 8 or len(password) > 128:
+            raise RuleError('Password harus 8–128 karakter.')
+
+        if password != password_confirm:
+            raise RuleError('Konfirmasi password tidak sama.')
+
+        member.password_hash = hash_password(password)
+
 
 @app.get('/anggota')
 def members(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -292,17 +340,109 @@ async def stock_save(request:Request,user:User=Depends(admin),db:Session=Depends
     movement(db,product,qty if direction=='masuk' else -qty,user.id,text(form.get('alasan'),'Alasan',200))
     db.commit();return go('/stok',request,'Perubahan stok dicatat.')
 
-@app.get('/katalog')
-def catalog(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
-    query=request.query_params.get('q','').strip()[:100]
-    category=request.query_params.get('kategori','')
-    statement=select(Product).join(Category).where(Product.active.is_(True),Category.active.is_(True))
-    if query:
-        escaped=query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')
-        statement=statement.where(or_(Product.nama.ilike('%'+escaped+'%',escape='\\'),Product.label.ilike('%'+escaped+'%',escape='\\')))
-    if category:statement=statement.where(Product.category_id==integer(category,'Kategori'))
-    return page(request,'catalog.html',user=user,products=db.scalars(statement.order_by(Product.nama)).all(),categories=db.scalars(select(Category).where(Category.active.is_(True))).all(),query=query,category=category)
+# ROUTE DASHBOARD ANGGOTA
+@app.get('/anggota/dashboard')
+def member_dashboard(
+    request: Request,
+    user: User = Depends(buyer),
+    db: Session = Depends(get_db)
+):
+    product_count = db.scalar(
+        select(func.count())
+        .select_from(Product)
+        .join(Category)
+        .where(
+            Product.active.is_(True),
+            Category.active.is_(True)
+        )
+    ) or 0
 
+    category_count = db.scalar(
+        select(func.count())
+        .select_from(Category)
+        .where(Category.active.is_(True))
+    ) or 0
+
+    featured_products = db.scalars(
+        select(Product)
+        .join(Category)
+        .where(
+            Product.active.is_(True),
+            Category.active.is_(True)
+        )
+        .order_by(Product.stok.desc(), Product.nama)
+        .limit(4)
+    ).all()
+
+    return page(
+        request,
+        'member_dashboard.html',
+        user=user,
+        product_count=product_count,
+        category_count=category_count,
+        featured_products=featured_products
+    )
+
+@app.get('/katalog')
+def catalog(
+    request: Request,
+    user: User = Depends(buyer),
+    db: Session = Depends(get_db)
+):
+    query = request.query_params.get('q', '').strip()[:100]
+    category = request.query_params.get('kategori', '')
+
+    statement = (
+        select(Product)
+        .join(Category)
+        .where(
+            Product.active.is_(True),
+            Category.active.is_(True)
+        )
+    )
+
+    if query:
+        escaped = (
+            query.replace('\\', '\\\\')
+            .replace('%', '\\%')
+            .replace('_', '\\_')
+        )
+
+        statement = statement.where(
+            or_(
+                Product.nama.ilike(
+                    '%' + escaped + '%',
+                    escape='\\'
+                ),
+                Product.label.ilike(
+                    '%' + escaped + '%',
+                    escape='\\'
+                )
+            )
+        )
+
+    if category:
+        statement = statement.where(
+            Product.category_id == integer(category, 'Kategori')
+        )
+
+    products = db.scalars(
+        statement.order_by(Product.nama)
+    ).all()
+
+    categories = db.scalars(
+        select(Category).where(Category.active.is_(True))
+    ).all()
+
+    return page(
+        request,
+        'catalog.html',
+        user=user,
+        products=products,
+        categories=categories,
+        query=query,
+        category=category
+    )
 
 def cart_rows(request,db):
     rows=[];total=0
