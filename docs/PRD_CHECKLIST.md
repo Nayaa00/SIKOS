@@ -126,3 +126,22 @@ Verifikasi 17 November 2026: 44 tes lulus, mencakup 41 tes SQLite/HTTP dan 3 tes
 konkurensi MariaDB XAMPP pada database uji khusus. MySQL 8 belum diuji. Smoke test browser
 halaman keranjang kosong berhasil; keranjang berisi barang dan tampilan HP belum diverifikasi
 secara visual pada perubahan ini. Satu warning deprecation Starlette/httpx.
+
+## Integrasi cipa terbaru — 17 November 2026
+
+Branch sumber origin/cipa adc656a digabung ke Octavian lokal dengan mempertahankan
+keranjang Tugas 2. Konflik sidebar dan CSS diselesaikan; CSS profil ditempatkan di luar
+media query katalog, dan cache CSS diperbarui. Validasi email profil mengikuti kolom
+190 karakter dan format email; password baru dibatasi 8–128 karakter.
+
+Verifikasi: 43 tes SQLite/HTTP lulus. Percobaan awal 3 tes MariaDB error karena koneksi
+terputus dan layanan XAMPP berhenti. Setelah pengguna menjalankan kembali layanan,
+3 tes MariaDB diulang dan lulus (3.29 detik). Ini bukan pengujian MySQL 8. Halaman login
+berhasil dibuka di browser; smoke test akun anggota/profil setelah login masih perlu
+pengguna masuk sendiri. Tidak ada perubahan profil atau password akun nyata oleh agen.
+
+Pekerjaan lanjutan: Transaksi Saya belum tersedia di cipa; Pesanan masih menggunakan
+nama umum dan belum memiliki pembatalan mandiri anggota. Profil cipa mengubah nama,
+email dan password, belum menyediakan telepon/alamat/nomor anggota. Progres luthfi
+terlihat pada fetch tetapi belum digabung karena permintaan saat ini mengambil cipa.
+Tidak ada push remote pada integrasi ini.

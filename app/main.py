@@ -66,6 +66,139 @@ def buyer(user:User=Depends(current)):
     return user
 
 
+# ==========================================
+# EDIT PROFIL ANGGOTA
+# ==========================================
+
+@app.get('/profil', response_class=HTMLResponse)
+def profile_page(
+    request: Request,
+    user: User = Depends(buyer),
+    db: Session = Depends(get_db)
+):
+    return page(
+        request,
+        'profile.html',
+        user=user,
+        error=None,
+        success=None
+    )
+
+
+@app.post('/profil', response_class=HTMLResponse)
+async def profile_update(
+    request: Request,
+    user: User = Depends(buyer),
+    db: Session = Depends(get_db)
+):
+    form = await request.form()
+    check_csrf(request, form)
+
+    nama = str(form.get('nama', '')).strip()
+    email = str(form.get('email', '')).strip().lower()
+
+    password_lama = str(form.get('password_lama', ''))
+    password_baru = str(form.get('password_baru', ''))
+    konfirmasi_password = str(form.get('konfirmasi_password', ''))
+
+    # Validasi nama
+    if not nama or len(nama) > 100:
+        return page(
+            request, 'profile.html',
+            user=user,
+            error='Nama wajib diisi dan maksimal 100 karakter.',
+            success=None
+        )
+
+    # Validasi email
+    if not email or len(email) > 190 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email):
+        return page(
+            request, 'profile.html',
+            user=user,
+            error='Alamat email tidak valid.',
+            success=None
+        )
+
+    # Cek email sudah digunakan akun lain
+    existing_user = db.scalar(
+        select(User).where(
+            User.email == email,
+            User.id != user.id
+        )
+    )
+
+    if existing_user:
+        return page(
+            request, 'profile.html',
+            user=user,
+            error='Email sudah digunakan oleh akun lain.',
+            success=None
+        )
+
+    # Perubahan password hanya jika password baru diisi
+    if password_baru:
+        if not password_lama:
+            return page(
+                request, 'profile.html',
+                user=user,
+                error='Masukkan password lama untuk mengganti password.',
+                success=None
+            )
+
+        if not verify_password(password_lama, user.password_hash):
+            return page(
+                request, 'profile.html',
+                user=user,
+                error='Password lama tidak sesuai.',
+                success=None
+            )
+
+        if not 8 <= len(password_baru) <= 128:
+            return page(
+                request, 'profile.html',
+                user=user,
+                error='Password baru harus 8 sampai 128 karakter.',
+                success=None
+            )
+
+        if password_baru != konfirmasi_password:
+            return page(
+                request, 'profile.html',
+                user=user,
+                error='Konfirmasi password baru tidak cocok.',
+                success=None
+            )
+
+    try:
+        # Update data profil
+        user.nama = nama
+        user.email = email
+
+        if password_baru:
+            user.password_hash = hash_password(password_baru)
+
+        db.commit()
+        db.refresh(user)
+
+    except IntegrityError:
+        db.rollback()
+
+        return page(
+            request, 'profile.html',
+            user=user,
+            error='Email sudah digunakan oleh akun lain.',
+            success=None
+        )
+
+    return page(
+        request,
+        'profile.html',
+        user=user,
+        error=None,
+        success='Profil berhasil diperbarui!'
+    )
+
+
 @app.exception_handler(HTTPException)
 async def http_error(request,exc):
     if exc.status_code==303:return go(exc.headers.get('Location','/login'))

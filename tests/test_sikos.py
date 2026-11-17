@@ -591,3 +591,32 @@ def test_cart_stale_token_and_admin_remove_denied(web,store):
     assert web.post('/pesanan/buat',data={'csrf':csrf,'token':checkout}).status_code==400
     csrf=signin(web,True)
     assert web.post('/keranjang/hapus',data={'csrf':csrf,'product_id':1}).status_code==403
+
+def test_profile_own_account_and_permissions(web,store):
+    assert web.get('/profil',follow_redirects=False).status_code==303
+    csrf=signin(web)
+    assert 'Edit Profil' in web.get('/profil').text
+    assert web.post('/profil',data={'nama':'A','email':'a@example.com'}).status_code==403
+    result=web.post('/profil',data={'csrf':csrf,'nama':'Nama baru','email':'BARU@example.com','id':3,'role':'admin','nomor':'BAD','active':'off'})
+    assert 'Profil berhasil diperbarui' in result.text
+    db=store[0];db.expire_all();member=db.get(User,2)
+    assert (member.nama,member.email,member.nomor,member.role,member.active)==('Nama baru','baru@example.com','AG1','anggota',True)
+    assert db.get(User,3).nama=='Anggota Dua'
+    csrf=signin(web,True)
+    assert web.get('/profil').status_code==403
+    assert web.post('/profil',data={'csrf':csrf,'nama':'A','email':'a@example.com'}).status_code==403
+
+def test_profile_invalid_email_and_password_atomic(web,store):
+    csrf=signin(web)
+    for email in ('bad@', 'bad @example.com', 'a'*180+'@example.com', 'dua@example.com'):
+        result=web.post('/profil',data={'csrf':csrf,'nama':'Changed','email':email})
+        assert 'profile-error' in result.text
+    for old,new,confirm in (('wrong','password-new','password-new'),('password-member','short','short'),('password-member','password-new','different'),('password-member','a'*129,'a'*129)):
+        result=web.post('/profil',data={'csrf':csrf,'nama':'Changed','email':'new@example.com','password_lama':old,'password_baru':new,'konfirmasi_password':confirm})
+        assert 'profile-error' in result.text
+    db=store[0];db.expire_all();member=db.get(User,2)
+    assert member.nama=='Naila' and member.email=='naila@example.com'
+    assert verify_password('password-member',member.password_hash)
+    result=web.post('/profil',data={'csrf':csrf,'nama':'Naila','email':member.email,'password_lama':'password-member','password_baru':'password-new','konfirmasi_password':'password-new'})
+    assert 'Profil berhasil diperbarui' in result.text
+    db.expire_all();assert verify_password('password-new',db.get(User,2).password_hash)
