@@ -64,36 +64,91 @@ def create_order(db, member, cart, token):
     db.flush()
     return order
 
+
 def transition(db, order_id, target, actor):
-    order=db.scalar(select(Order).where(Order.id==order_id).with_for_update().execution_options(populate_existing=True))
+    order = db.scalar(
+        select(Order)
+        .where(Order.id == order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
     if order is None:
         raise RuleError('Pesanan tidak ditemukan.')
+
     if target == order.status:
         return order
-    valid={'Menunggu konfirmasi':{'Dikonfirmasi','Dibatalkan'},'Dikonfirmasi':{'Selesai','Dibatalkan'},'Selesai':set(),'Dibatalkan':set()}
-    if target not in valid.get(order.status,set()):
+
+    valid = {
+        'Menunggu konfirmasi': {'Dikonfirmasi', 'Dibatalkan'},
+        'Dikonfirmasi': {'Selesai', 'Dibatalkan'},
+        'Selesai': set(),
+        'Dibatalkan': set()
+    }
+
+    if target not in valid.get(order.status, set()):
         raise RuleError('Perubahan status tersebut tidak diperbolehkan.')
-    if target=='Dikonfirmasi' or (target=='Dibatalkan' and order.status=='Dikonfirmasi'):
-        for line in sorted(order.lines,key=lambda line:line.product_id):
-            product=db.scalar(select(Product).where(Product.id==line.product_id).with_for_update().execution_options(populate_existing=True))
-            if target=='Dikonfirmasi':
+
+    # Cegah pembatalan jika pembayaran sudah lunas
+    sale = None
+    if target == 'Dibatalkan':
+        sale = db.scalar(
+            select(Sale).where(Sale.order_id == order.id)
+        )
+
+        if sale and sale.status_pembayaran == 'Lunas':
+            raise RuleError(
+                'Pesanan sudah dibayar. Pengembalian dana harus diproses sebelum pembatalan.'
+            )
+
+    # Proses perubahan stok
+    if target == 'Dikonfirmasi' or (
+        target == 'Dibatalkan' and order.status == 'Dikonfirmasi'
+    ):
+        for line in sorted(order.lines, key=lambda line: line.product_id):
+            product = db.scalar(
+                select(Product)
+                .where(Product.id == line.product_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+
+            if target == 'Dikonfirmasi':
                 if not product.active or not product.category.active:
                     raise RuleError(f'{product.nama} sudah dinonaktifkan.')
-                movement(db,product,-line.qty,actor,'Konfirmasi pesanan',order.id)
+
+                movement(
+                    db, product, -line.qty, actor,
+                    'Konfirmasi pesanan', order.id
+                )
             else:
-                movement(db,product,line.qty,actor,'Pembatalan pesanan',order.id)
-    if target=='Dikonfirmasi':
-        order.confirmed_at=utcnow()
-        db.add(Sale(order_id=order.id,total=order.total,created_at=order.confirmed_at,valid=True))
-    elif target=='Dibatalkan':
-        sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+                movement(
+                    db, product, line.qty, actor,
+                    'Pembatalan pesanan', order.id
+                )
+
+    if target == 'Dikonfirmasi':
+        order.confirmed_at = utcnow()
+        db.add(
+            Sale(
+                order_id=order.id,
+                total=order.total,
+                created_at=order.confirmed_at,
+                valid=True
+            )
+        )
+
+    elif target == 'Dibatalkan':
         if sale:
-            sale.valid=False
-    elif target=='Selesai':
-        order.completed_at=utcnow()
-    order.status=target
+            sale.valid = False
+
+    elif target == 'Selesai':
+        order.completed_at = utcnow()
+
+    order.status = target
     db.flush()
     return order
+
 
 def period(kind, selected):
     try:
@@ -111,3 +166,33 @@ def period(kind, selected):
     else: raise RuleError('Jenis periode tidak valid.')
     zone=ZoneInfo('Asia/Jakarta')
     return tuple(datetime.combine(d,time.min,zone).astimezone(timezone.utc).replace(tzinfo=None) for d in (start,end))
+
+
+def record_payment(db, sale_id, amount):
+    sale = db.scalar(
+        select(Sale)
+        .where(Sale.id == sale_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+    if sale is None:
+        raise RuleError('Transaksi tidak ditemukan.')
+
+    if not sale.valid:
+        raise RuleError('Transaksi sudah tidak valid.')
+
+    if sale.status_pembayaran == 'Lunas':
+        raise RuleError('Pembayaran sudah lunas.')
+
+    if amount < sale.total:
+        raise RuleError('Uang yang diterima kurang dari total pembayaran.')
+
+    sale.metode_pembayaran = 'Tunai'
+    sale.status_pembayaran = 'Lunas'
+    sale.jumlah_bayar = amount
+    sale.kembalian = amount - sale.total
+    sale.paid_at = utcnow()
+
+    db.flush()
+    return sale

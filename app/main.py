@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
 from .models import User, Category, Product, Order, Sale, StockMovement
 from .security import hash_password, verify_password, csrf_token, check_csrf
-from .services import RuleError, integer, text, code, movement, create_order, transition
+from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment
 from .product_images import product_image, default_product_image, valid_product_image
 from .product_codes import next_product_code, choose_prefix
 from .analytics import analyze
@@ -107,7 +107,7 @@ def register_page(request:Request):
 async def register_submit(request:Request,db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
     member=User(nomor='AG-'+uuid4().hex[:12].upper(),role='anggota',active=True)
-    apply_member(member,form,new=True)
+    apply_member(member, form, new=True, db=db, confirm_password=True)
     db.add(member);db.commit()
     return go('/login',request,'Pendaftaran berhasil. Silakan login menggunakan email.')
 
@@ -128,16 +128,37 @@ def dashboard(request:Request,user:User=Depends(current),db:Session=Depends(get_
                 pending=db.scalar(select(func.count()).select_from(Order).where(Order.status=='Menunggu konfirmasi')))
 
 
-def apply_member(member,form,new=False):
-    member.nama=text(form.get('nama'),'Nama')
-    member.email=text(form.get('email'),'Email',190).lower()
-    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',member.email):raise RuleError('Format email tidak valid.')
-    member.telepon=text(form.get('telepon'),'Telepon',30)
-    member.alamat=text(form.get('alamat'),'Alamat',2000)
-    password=str(form.get('password',''))
+def apply_member(member, form, new=False, db=None, confirm_password=False):
+    member.nama = text(form.get('nama'), 'Nama')
+    member.email = text(form.get('email'), 'Email', 190).lower()
+
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', member.email):
+        raise RuleError('Format email tidak valid.')
+
+    # Cek email sudah digunakan oleh anggota lain
+    if db is not None:
+        existing = db.scalar(
+            select(User).where(
+                User.email == member.email,
+                User.id != member.id if member.id else True
+            )
+        )
+        if existing:
+            raise RuleError('Email sudah terdaftar.')
+
+    member.telepon = text(form.get('telepon'), 'Telepon', 30)
+    member.alamat = text(form.get('alamat'), 'Alamat', 2000)
+
+    password = str(form.get('password', ''))
+
+    # Validasi konfirmasi password khusus registrasi
+    if confirm_password and password != str(form.get('konfirmasi_password', '')):
+        raise RuleError('Konfirmasi password tidak sesuai.')
+
     if password or new:
-        if len(password)<8 or len(password)>128:raise RuleError('Password harus 8–128 karakter.')
-        member.password_hash=hash_password(password)
+        if len(password) < 8 or len(password) > 128:
+            raise RuleError('Password harus 8-128 karakter.')
+        member.password_hash = hash_password(password)
 
 @app.get('/anggota')
 def members(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -160,7 +181,7 @@ async def member_save(request:Request,user:User=Depends(admin),db:Session=Depend
     member=db.get(User,integer(member_id,'ID')) if member_id else User(role='anggota')
     if member is None or member.role!='anggota':raise HTTPException(404,'Anggota tidak ditemukan.')
     member.nomor=text(form.get('nomor'),'Nomor anggota',40).upper()
-    apply_member(member,form,new=not bool(member_id))
+    apply_member(member, form, new=not bool(member_id), db=db)
     member.active=form.get('active')=='on'
     db.add(member);db.commit();return go('/anggota',request,'Data anggota disimpan.')
 
@@ -372,6 +393,31 @@ async def order_status(order_id:int,request:Request,user:User=Depends(admin),db:
 def sales_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     rows=db.execute(select(Sale,Order).join(Order,Sale.order_id==Order.id).order_by(Sale.id.desc())).all()
     return page(request,'sales.html',user=user,rows=rows)
+
+
+@app.post('/transaksi/{sale_id}/bayar')
+async def sale_payment(
+    sale_id: int,
+    request: Request,
+    user: User = Depends(admin),
+    db: Session = Depends(get_db)
+):
+    form = await request.form()
+    check_csrf(request, form)
+
+    amount = integer(
+        form.get('jumlah_bayar'),
+        'Jumlah uang diterima'
+    )
+
+    record_payment(db, sale_id, amount)
+    db.commit()
+
+    return go(
+        '/transaksi',
+        request,
+        'Pembayaran berhasil dicatat.'
+    )
 
 @app.get('/laporan')
 def report_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
