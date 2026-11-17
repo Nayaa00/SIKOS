@@ -1,17 +1,14 @@
-{% extends 'base.html' %}
-{% block content %}
-<span class="eyebrow">MASTER DATA</span>
-<h1>Kategori produk</h1>
-<p class="muted">Atur status kategori yang tersedia, lalu klik Simpan. Kategori nonaktif disembunyikan dari katalog pembeli.</p>
-<div class="card"><table>
-<thead><tr><th>Nama kategori</th><th>Status</th><th>Aksi</th></tr></thead>
-<tbody>{% for c in categories %}<tr>
-<td><strong>{{ c.nama }}</strong></td>
-<td><form id="category-{{ c.id }}" method="post" action="/kategori/simpan">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ c.id }}">
-<label><input name="active" type="checkbox" {% if c.active %}checked{% endif %} aria-label="Aktifkan kategori {{ c.nama }}"> {{ 'Aktif' if c.active else 'Nonaktif' }}</label>
-</form></td>
-<td><button form="category-{{ c.id }}" class="btn-sm" aria-label="Simpan status {{ c.nama }}">Simpan</button></td>
-</tr>{% else %}<tr><td colspan="3" class="empty">Kategori belum tersedia. Jalankan inisialisasi database SIKOS.</td></tr>{% endfor %}</tbody>
-</table></div>
+{% extends 'base.html' %}{% block content %}
+<span class="eyebrow">MASTER DATA</span><h1>Kategori produk</h1>
+<p class="muted">Kelompokkan produk dan atur awalan kode otomatis untuk setiap kategori.</p>
+<div class="card"><h2>Tambah kategori</h2>
+<form method="post" action="/kategori/simpan"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="form-grid"><div class="field"><label for="category-name">Nama kategori</label><input id="category-name" name="nama" maxlength="100" placeholder="Misalnya Alat tulis" required></div>
+<div class="field"><label for="category-prefix">Awalan kode (opsional)</label><input id="category-prefix" name="code_prefix" maxlength="3" minlength="3" pattern="[A-Za-z]{3}" placeholder="Misalnya ALT" style="text-transform:uppercase"></div></div>
+<p class="small-note">Awalan berisi 3 huruf unik. Kosongkan untuk dibuat otomatis dari nama kategori. Awalan lima kategori utama tetap BPK, PRW, MKR, MNM, dan SHT.</p>
+<div class="toolbar"><label><input name="active" type="checkbox" checked> Aktif</label><button>Tambah kategori</button></div></form></div>
+<div class="card"><table><thead><tr><th>Nama kategori</th><th>Awalan kode</th><th>Status</th><th>Aksi</th></tr></thead><tbody>
+{% for c in categories %}<tr><td><strong>{{ c.nama }}</strong></td><td>{{ c.code_prefix or 'Otomatis' }}</td>
+<td><form id="category-{{ c.id }}" method="post" action="/kategori/simpan"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ c.id }}"><label><input name="active" type="checkbox" {% if c.active %}checked{% endif %} aria-label="Aktifkan kategori {{ c.nama }}"> {{ 'Aktif' if c.active else 'Nonaktif' }}</label></form></td>
+<td><button form="category-{{ c.id }}" class="btn-sm" aria-label="Simpan status {{ c.nama }}">Simpan</button></td></tr>{% else %}<tr><td colspan="4" class="empty">Belum ada kategori.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

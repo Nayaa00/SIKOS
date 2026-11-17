@@ -19,7 +19,10 @@ from .db import get_db
 from .models import User, Category, Product, Order, Sale, StockMovement
 from .security import hash_password, verify_password, csrf_token, check_csrf
 from .services import RuleError, integer, text, code, movement, create_order, transition
+from .product_images import product_image, default_product_image, valid_product_image
+from .product_codes import next_product_code, choose_prefix
 from .analytics import analyze
+from .taxonomy import CATEGORIES, category_name
 
 ROOT=Path(__file__).resolve().parent
 app=FastAPI(title='SIKOS — Koperasi Sejahtera',version='1.0.0')
@@ -34,9 +37,11 @@ def wib(value):
     from datetime import timezone
     return value.replace(tzinfo=timezone.utc).astimezone(ZoneInfo('Asia/Jakarta')).strftime('%d %b %Y %H:%M') if value else '—'
 templates.env.filters['wib']=wib
+templates.env.filters['product_image']=product_image
+templates.env.filters['default_product_image']=default_product_image
 
 def page(request,name,**context):
-    context.update(csrf=csrf_token(request),notice=request.session.pop('notice',None))
+    context.update(csrf=csrf_token(request),notice=request.session.pop('notice',None),category_choices=CATEGORIES)
     return templates.TemplateResponse(request=request,name=name,context=context)
 
 def go(url,request=None,message=None):
@@ -174,10 +179,20 @@ def categories(request:Request,user:User=Depends(admin),db:Session=Depends(get_d
 async def category_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
     if not form.get('id'):
-        return go('/kategori',request,'Kategori utama sudah tersedia. Ubah status melalui daftar kategori; tidak perlu menambah kategori lagi.')
+        name=category_name(form.get('nama'))
+        if db.scalar(select(Category).where(func.lower(Category.nama)==name.lower())):
+            return go('/kategori',request,'Nama kategori sudah tersedia. Tidak ada kategori duplikat yang ditambahkan.')
+        used=set(db.scalars(select(Category.code_prefix).where(Category.code_prefix.is_not(None))))
+        prefix=choose_prefix(name,used,form.get('code_prefix',''))
+        category=Category(nama=name,code_prefix=prefix,code_counter=0,active=form.get('active')=='on')
+        db.add(category)
+        try:db.commit()
+        except IntegrityError:
+            db.rollback()
+            return go('/kategori',request,'Nama kategori atau awalan kode sudah digunakan. Periksa kembali.')
+        return go('/kategori',request,'Kategori baru berhasil ditambahkan.')
     category=db.get(Category,integer(form['id'],'ID'))
     if category is None:raise HTTPException(404,'Kategori tidak ditemukan.')
-    # Category names are fixed. Only the active flag is editable, even for crafted requests.
     category.active=form.get('active')=='on'
     db.commit();return go('/kategori',request,'Status kategori disimpan.')
 
@@ -190,17 +205,47 @@ async def category_delete(category_id:int,request:Request,user:User=Depends(admi
 
 @app.get('/produk')
 def products(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
-    return page(request,'products.html',user=user,products=db.scalars(select(Product).order_by(Product.nama)).all())
+    query=request.query_params.get('q','').strip()[:100]
+    category=request.query_params.get('kategori','')
+    statement=select(Product)
+    if query:
+        escaped=query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')
+        statement=statement.where(or_(Product.nama.ilike('%'+escaped+'%',escape='\\'),Product.kode.ilike('%'+escaped+'%',escape='\\'),Product.label.ilike('%'+escaped+'%',escape='\\')))
+    if category:
+        category_id=integer(category,'Kategori')
+        if db.get(Category,category_id) is None:raise RuleError('Kategori tidak ditemukan.')
+        statement=statement.where(Product.category_id==category_id)
+        category=str(category_id)
+    return page(request,'products.html',user=user,products=db.scalars(statement.order_by(Product.nama)).all(),
+                categories=db.scalars(select(Category).order_by(Category.nama)).all(),query=query,category=category,
+                total_count=db.scalar(select(func.count()).select_from(Product)))
+
+def product_labels(db):
+    # Include archived products so historical labels remain selectable during maintenance.
+    values=db.scalars(select(Product.label).where(Product.label!='').distinct()).all()
+    labels={}
+    for value in sorted(values):
+        value=value.strip()
+        if value:labels.setdefault(value.casefold(),value)
+    return sorted(labels.values(),key=str.casefold)
 
 @app.get('/produk/tambah')
 def product_add_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
-    return page(request,'product_form.html',user=user,product=None,categories=db.scalars(select(Category).where(Category.active.is_(True))).all())
+    return page(request,'product_form.html',user=user,product=None,categories=db.scalars(select(Category).where(Category.active.is_(True))).all(),labels=product_labels(db))
 
 @app.get('/produk/{product_id}/edit')
 def product_edit_page(product_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     product=db.get(Product,product_id)
     if product is None:raise HTTPException(404,'Produk tidak ditemukan.')
-    return page(request,'product_form.html',user=user,product=product,categories=db.scalars(select(Category)).all())
+    return page(request,'product_form.html',user=user,product=product,categories=db.scalars(select(Category)).all(),labels=product_labels(db))
+
+@app.get('/produk/kode-berikutnya')
+def product_code_preview(category_id:int,product_id:int|None=None,user:User=Depends(admin),db:Session=Depends(get_db)):
+    if product_id is not None:
+        product=db.get(Product,product_id)
+        if product is None:raise HTTPException(404,'Produk tidak ditemukan.')
+        if product.category_id==category_id:return {'kode':product.kode,'tetap':True}
+    return {'kode':next_product_code(db,category_id,reserve=False),'tetap':False}
 
 @app.post('/produk/simpan')
 async def product_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -210,12 +255,17 @@ async def product_save(request:Request,user:User=Depends(admin),db:Session=Depen
     if product is None:raise HTTPException(404,'Produk tidak ditemukan.')
     category=db.get(Category,integer(form.get('category_id'),'Kategori'))
     if category is None or not category.active:raise RuleError('Pilih kategori yang aktif.')
-    product.kode=code(form.get('kode'));product.nama=text(form.get('nama'),'Nama produk')
+    if not product_id or product.category_id!=category.id:
+        product.kode=next_product_code(db,category.id)
+    product.nama=text(form.get('nama'),'Nama produk')
+    chosen_label=text(form.get('label'),'Label',100)
+    if chosen_label not in product_labels(db):raise RuleError('Pilih label yang tersedia pada dropdown.')
+    product.label=chosen_label
     product.category_id=category.id;product.harga=integer(form.get('harga'),'Harga')
     product.satuan=text(form.get('satuan'),'Satuan',30)
     product.deskripsi=str(form.get('deskripsi','')).strip()[:5000]
     image=str(form.get('gambar','')).strip()
-    if image and (not image.startswith('https://') or len(image)>500):raise RuleError('URL gambar harus HTTPS, maksimal 500 karakter.')
+    if image and not valid_product_image(image):raise RuleError('Gunakan URL gambar HTTPS atau foto lokal produk yang tersedia, maksimal 500 karakter.')
     product.gambar=image;product.active=form.get('active')=='on'
     db.add(product);db.flush()
     if not product_id:movement(db,product,integer(form.get('stok'),'Stok awal',True),user.id,'Stok awal produk manual')
@@ -249,7 +299,7 @@ def catalog(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db))
     statement=select(Product).join(Category).where(Product.active.is_(True),Category.active.is_(True))
     if query:
         escaped=query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')
-        statement=statement.where(or_(Product.nama.ilike('%'+escaped+'%',escape='\\'),Product.kode.ilike('%'+escaped+'%',escape='\\')))
+        statement=statement.where(or_(Product.nama.ilike('%'+escaped+'%',escape='\\'),Product.label.ilike('%'+escaped+'%',escape='\\')))
     if category:statement=statement.where(Product.category_id==integer(category,'Kategori'))
     return page(request,'catalog.html',user=user,products=db.scalars(statement.order_by(Product.nama)).all(),categories=db.scalars(select(Category).where(Category.active.is_(True))).all(),query=query,category=category)
 
@@ -348,7 +398,7 @@ def import_page(request:Request,user:User=Depends(admin)):
 @app.get('/impor/template')
 def import_template(user:User=Depends(admin)):
     buffer=BytesIO()
-    pd.DataFrame([{'kode':'IMP001','nama':'Beras premium 5 kg','kategori':'Beras','harga':75000,'stok':10,'satuan':'karung','deskripsi':'Contoh data'}]).to_excel(buffer,index=False,engine='openpyxl')
+    pd.DataFrame([{'kode':'IMP001','nama':'Beras premium 5 kg','label':'Beras','kategori':'Bahan pokok','harga':75000,'stok':10,'satuan':'karung','deskripsi':'Contoh data'}]).to_excel(buffer,index=False,engine='openpyxl')
     return Response(buffer.getvalue(),media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="template_produk_sikos.xlsx"'})
 
 @app.post('/impor')
