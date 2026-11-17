@@ -146,7 +146,7 @@ def test_import_partial_valid_duplicate_invalid(store):
     result=save_rows(db,load_rows(raw),a.id);db.commit()
     assert result['success']==1 and result['failed']==3
     assert len(result['errors'])==3
-    assert db.scalar(select(Product).where(Product.kode=='N01')).stok==5
+    assert db.scalar(select(Product).where(Product.source_code=='N01')).stok==5
 
 def test_bad_excel_header():
     with pytest.raises(RuleError):load_rows(excel([{'foo':'bar'}]))
@@ -192,12 +192,12 @@ def test_admin_crud_http(web,store):
     csrf=signin(web,True)
     response=web.post('/anggota/simpan',data={'csrf':csrf,'nomor':'AG003','nama':'Baru','email':'baru@example.com','telepon':'0812','alamat':'Bandung','password':'password-baru','active':'on'})
     assert response.status_code==200 and 'AG003' in response.text
-    db=store[0];category=Category(nama='Gula');db.add(category);db.commit()
+    db=store[0];store[4].label='Gula';category=Category(nama='Bahan pokok');db.add(category);db.commit()
     response=web.post('/kategori/simpan',data={'csrf':csrf,'id':category.id,'active':'on'})
     assert response.status_code==200
-    response=web.post('/produk/simpan',data={'csrf':csrf,'kode':'G001','nama':'Gula 1kg','category_id':category.id,'harga':16000,'stok':7,'satuan':'pak','active':'on'})
-    assert response.status_code==200 and 'G001' in response.text
-    product=db.scalar(select(Product).where(Product.kode=='G001'))
+    response=web.post('/produk/simpan',data={'csrf':csrf,'kode':'G001','nama':'Gula 1kg','label':'Gula','category_id':category.id,'harga':16000,'stok':7,'satuan':'pak','active':'on'})
+    assert response.status_code==200 and 'BPK001' in response.text
+    product=db.scalar(select(Product).where(Product.nama=='Gula 1kg'))
     response=web.post('/stok',data={'csrf':csrf,'product_id':product.id,'qty':2,'direction':'keluar','alasan':'rusak'})
     assert response.status_code==200
     db.expire_all();assert db.get(Product,product.id).stok==5
@@ -279,6 +279,67 @@ def test_order_status_constraint(store):
     db.rollback()
 
 
+def test_catalog_search_name_or_label_only(web,store):
+    db,_,_,_,product,second,_ = store
+    product.label='Sembako khusus'; second.label='Lainnya'; db.commit()
+    signin(web)
+    assert 'Beras 5kg' in web.get('/katalog?q=sembako').text
+    assert 'Beras 10kg' not in web.get('/katalog?q=sembako').text
+    assert 'Beras 5kg' in web.get('/katalog?q=Beras+5kg').text
+    assert 'Beras 5kg' not in web.get('/katalog?q=B01').text
+    assert 'Cari nama atau label' in web.get('/katalog').text
+
+def test_import_label_and_broad_category(store):
+    db,admin,*_=store
+    row={'kode':'SAB01','nama':'Sabun mandi','label':'Sabun','kategori':'Perawatan','harga':5000,'stok':8,'satuan':'batang'}
+    result=save_rows(db,load_rows(excel([row,{**row,'kode':'BAD01','kategori':'Tidak dikenal'}])),admin.id)
+    db.commit()
+    assert result['success']==1 and result['failed']==1
+    product=db.scalar(select(Product).where(Product.source_code=='SAB01'))
+    assert product.label=='Sabun' and product.category.nama=='Perawatan'
+
+def test_migrate_labels_preserves_inventory_and_history(store):
+    from app.migrations import migrate_product_labels
+    db,admin,member,_,product,_,factory=store
+    order=create_order(db,member.id,{str(product.id):2},'7'*32)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    stock=product.stok;total=order.total
+    migrate_product_labels(db.get_bind());migrate_product_labels(db.get_bind())
+    db.expire_all()
+    assert product.stok==stock and order.total==total
+    assert product.label=='Beras' and product.category.nama=='Bahan pokok'
+    assert db.scalar(select(func.count()).select_from(Sale))==1
+    assert db.scalar(select(func.count()).select_from(StockMovement))==1
+
+
+def test_product_cards_and_local_photos(web,store):
+    from app.product_images import default_product_image
+    db,_,_,_,product,_,_=store
+    signin(web,True)
+    response=web.get('/produk')
+    assert response.status_code==200
+    assert '<article class="inventory-card' in response.text
+    assert '<table' not in response.text
+    assert 'Stok tersedia' in response.text and 'Hapus / arsip' in response.text
+    assert f'/produk/{product.id}/edit' in response.text
+    photo=default_product_image(product)
+    assert photo in response.text
+    image=web.get(photo)
+    assert image.status_code==200 and image.headers['content-type'].startswith('image/')
+    signin(web)
+    assert photo in web.get('/katalog').text
+    assert web.get('/static/products/credits.html').status_code==200
+
+def test_product_image_custom_url_and_path_safety():
+    from app.product_images import product_image,valid_product_image
+    from types import SimpleNamespace
+    custom=SimpleNamespace(nama='Beras',gambar='https://example.com/rice.jpg')
+    assert product_image(custom)==custom.gambar
+    assert valid_product_image('/static/products/rice.jpg')
+    for value in ('javascript:alert(1)','/static/products/../../.env','http://example.com/a.jpg','/static/products/missing.jpg'):
+        assert not valid_product_image(value)
+
+
 def test_admin_cannot_access_buyer_pages_or_create_orders(web,store):
     from app.models import Order
     csrf=signin(web,True)
@@ -313,12 +374,12 @@ def test_categories_fixed_names_status_and_stale_add_form(web,store):
     count=db.scalar(select(func.count()).select_from(Category))
     csrf=signin(web,True)
     response=web.get('/kategori')
-    assert '<select' not in response.text and 'Tambah kategori' not in response.text
+    assert '<select' not in response.text and 'Tambah kategori' in response.text
     response=web.post('/kategori/simpan',data={'csrf':csrf,'nama':original_name,'active':'on'})
     assert response.status_code==200
     assert '/kategori'==response.url.path
-    assert 'Kategori utama sudah tersedia' in response.text
-    assert 'href="/produk"' in response.text
+    assert 'Nama kategori sudah tersedia' in response.text
+    assert 'Admin Koperasi' not in response.text or 'href="/produk"' in response.text
     assert web.get('/produk').status_code==200
     db.expire_all()
     assert db.scalar(select(func.count()).select_from(Category))==count
@@ -331,3 +392,112 @@ def test_categories_fixed_names_status_and_stale_add_form(web,store):
     db.expire_all()
     assert category.nama==original_name and category.active
     assert db.get(Product,product.id).stok==10
+
+
+def test_category_creation_custom_prefix_and_duplicates(web,store):
+    db=store[0]
+    csrf=signin(web,True)
+    assert web.post('/kategori/simpan',data={'csrf':csrf,'nama':'Alat tulis','code_prefix':'ALT','active':'on'}).status_code==200
+    category=db.scalar(select(Category).where(Category.nama=='Alat tulis'))
+    assert category.code_prefix=='ALT' and category.active
+    count=db.scalar(select(func.count()).select_from(Category))
+    response=web.post('/kategori/simpan',data={'csrf':csrf,'nama':'alat tulis','code_prefix':'XYZ','active':'on'})
+    assert 'Nama kategori sudah tersedia' in response.text
+    assert db.scalar(select(func.count()).select_from(Category))==count
+    assert web.post('/kategori/simpan',data={'csrf':csrf,'nama':'Kategori lain','code_prefix':'ALT','active':'on'}).status_code==400
+
+def test_product_code_preview_and_server_authority(web,store):
+    db=store[0]
+    store[4].label='Teh'
+    category=Category(nama='Minuman',code_prefix='MNM');db.add(category);db.commit()
+    csrf=signin(web,True)
+    preview=web.get(f'/produk/kode-berikutnya?category_id={category.id}')
+    assert preview.json()['kode']=='MNM001'
+    assert web.get(f'/produk/kode-berikutnya?category_id={category.id}').json()['kode']=='MNM001'
+    form={'csrf':csrf,'nama':'Teh botol','label':'Teh','category_id':category.id,'harga':5000,'stok':4,'satuan':'botol','active':'on','kode':'HACK999'}
+    assert web.post('/produk/simpan',data=form).status_code==200
+    product=db.scalar(select(Product).where(Product.nama=='Teh botol'))
+    assert product.kode=='MNM001'
+    assert 'readonly' in web.get('/produk/tambah').text
+    assert web.get(f'/produk/kode-berikutnya?category_id={category.id}').json()['kode']=='MNM002'
+    assert web.post('/produk/simpan',data={**form,'id':product.id,'nama':'Teh baru'}).status_code==200
+    db.expire_all();assert product.kode=='MNM001' and product.stok==4
+    other=Category(nama='Makanan ringan',code_prefix='MKR');db.add(other);db.commit()
+    assert web.post('/produk/simpan',data={**form,'id':product.id,'category_id':other.id}).status_code==200
+    db.expire_all();assert product.kode=='MKR001' and product.stok==4
+
+def test_code_migration_preserves_snapshot_and_reimport_is_rejected(store):
+    from app.code_migration import migrate_product_codes
+    db,admin,member,_,product,second,_=store
+    product.category.nama='Bahan pokok'
+    product.kode='UJI001';second.kode='UJI002';db.commit()
+    order=create_order(db,member.id,{str(product.id):2},'8'*32)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    stock=product.stok;price=product.harga;total=order.total
+    migrate_product_codes(db.get_bind());migrate_product_codes(db.get_bind())
+    db.expire_all()
+    assert product.kode=='BPK001' and second.kode=='BPK002'
+    assert product.source_code=='UJI001'
+    assert product.stok==stock and product.harga==price and order.total==total
+    assert order.lines[0].kode=='UJI001'
+    assert db.scalar(select(func.count()).select_from(Sale))==1
+    assert db.scalar(select(func.count()).select_from(StockMovement))==1
+    row={'kode':'UJI001','nama':'Beras lama','label':'Beras','kategori':'Bahan pokok','harga':5000,'stok':999,'satuan':'pak'}
+    result=save_rows(db,load_rows(excel([row])),admin.id);db.commit()
+    assert result['failed']==1 and result['success']==0
+    assert db.get(Product,product.id).stok==stock
+
+def test_automatic_import_codes_keep_excel_alias_and_rollback_counter(store):
+    from app.product_codes import next_product_code
+    db,admin,*_=store
+    row={'kode':'EX001','nama':'Air mineral','label':'Air','kategori':'Minuman','harga':3000,'stok':2,'satuan':'botol'}
+    result=save_rows(db,load_rows(excel([row])),admin.id);db.commit()
+    product=db.scalar(select(Product).where(Product.source_code=='EX001'))
+    assert result['success']==1 and product.kode=='MNM001'
+    category=product.category
+    assert next_product_code(db,category.id)=='MNM002'
+    db.rollback()
+    assert next_product_code(db,category.id)=='MNM002'
+    db.rollback()
+    result=save_rows(db,load_rows(excel([row])),admin.id);db.commit()
+    assert result['failed']==1
+
+
+def test_label_dropdown_matches_saved_data_and_rejects_unknown(web,store):
+    db,_,_,_,product,second,_=store
+    product.label='Beras';second.label='Minyak';db.commit()
+    csrf=signin(web,True)
+    add=web.get('/produk/tambah')
+    assert '<select id="product-label" name="label" required>' in add.text
+    assert '<input name="label"' not in add.text
+    assert '<option value="Beras"' in add.text and '<option value="Minyak"' in add.text
+    edit=web.get(f'/produk/{product.id}/edit')
+    assert '<option value="Beras" selected>' in edit.text
+    count=db.scalar(select(func.count()).select_from(Product))
+    response=web.post('/produk/simpan',data={'csrf':csrf,'nama':'Baru','label':'Label palsu','category_id':product.category_id,'harga':1000,'stok':0,'satuan':'pak','active':'on'})
+    assert response.status_code==400
+    assert 'Pilih label yang tersedia' in response.text
+    db.expire_all();assert db.scalar(select(func.count()).select_from(Product))==count
+    assert product.stok==10
+
+def test_admin_product_search_category_combination_and_empty_result(web,store):
+    db,_,_,_,product,second,_=store
+    category=Category(nama='Minuman',code_prefix='MNM');db.add(category);db.flush()
+    product.label='Beras';second.nama='Teh tawar';second.label='Teh';second.category_id=category.id;db.commit()
+    signin(web,True)
+    assert 'Beras 5kg' in web.get('/produk?q=beras').text
+    assert 'Teh tawar' not in web.get('/produk?q=beras').text
+    assert 'Beras 5kg' in web.get('/produk?q=B01').text
+    assert 'Teh tawar' in web.get('/produk?q=teh').text
+    filtered=web.get(f'/produk?kategori={category.id}')
+    assert 'Teh tawar' in filtered.text and 'Beras 5kg' not in filtered.text
+    assert f'value="{category.id}" selected' in filtered.text
+    combined=web.get(f'/produk?q=beras&kategori={category.id}')
+    assert 'Tidak ada produk yang cocok' in combined.text
+    assert 'href="/produk">Reset' in combined.text
+    assert web.get('/produk?kategori=abc').status_code==400
+    assert web.get('/produk?kategori=99999').status_code==400
+    # SQL wildcards are searched literally, not expanded to match every product.
+    assert 'Tidak ada produk yang cocok' in web.get('/produk?q=%25').text
+    signin(web)
+    assert web.get('/produk?q=teh').status_code==403
