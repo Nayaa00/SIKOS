@@ -538,3 +538,56 @@ def test_cipa_member_dashboard_role_and_active_catalog(web,store):
     assert db.get(Product,second.id).stok==0
     signin(web,True)
     assert web.get('/anggota/dashboard').status_code==403
+
+def test_cart_update_remove_and_inline_validation(web,store):
+    csrf=signin(web)
+    web.post('/keranjang/tambah',data={'csrf':csrf,'product_id':1,'qty':2})
+    web.post('/keranjang/tambah',data={'csrf':csrf,'product_id':2,'qty':1})
+    response=web.post('/keranjang/ubah',data={'csrf':csrf,'qty_1':3,'qty_2':2})
+    assert response.status_code==400 and 'stok tidak cukup' in response.text
+    assert 'href="/keranjang"' in response.text
+    assert 'value="2" required data-price="70000"' in response.text
+    response=web.post('/keranjang/ubah',data={'csrf':csrf,'qty_1':3,'qty_2':1})
+    assert response.status_code==200 and 'Rp350.000' in response.text
+    assert web.post('/keranjang/hapus',data={'product_id':1}).status_code==403
+    response=web.post('/keranjang/hapus',data={'csrf':csrf,'product_id':2})
+    assert 'Rp210.000' in response.text and 'Beras 10kg' not in response.text
+    response=web.post('/keranjang/hapus',data={'csrf':csrf,'product_id':1})
+    assert 'Keranjang masih kosong' in response.text
+    assert store[0].scalar(select(func.count()).select_from(Order))==0
+
+def test_cart_checkout_latest_quantities_and_snapshot(web,store):
+    csrf=signin(web)
+    response=web.post('/keranjang/tambah',data={'csrf':csrf,'product_id':1,'qty':1})
+    checkout=re.search(r'name="token" value="([^"]+)"',response.text).group(1)
+    response=web.post('/pesanan/buat',data={'csrf':csrf,'token':checkout,'qty_1':3,'total':1,'harga':1})
+    assert response.status_code==200 and 'Menunggu konfirmasi' in response.text
+    db=store[0];db.expire_all();order=db.scalar(select(Order))
+    assert order.total==210000 and order.lines[0].qty==3 and order.lines[0].harga==70000
+    assert db.get(Product,1).stok==10
+    web.post('/pesanan/buat',data={'csrf':csrf,'token':checkout,'qty_1':3})
+    assert db.scalar(select(func.count()).select_from(Order))==1
+    assert 'Keranjang masih kosong' in web.get('/keranjang').text
+
+def test_cart_stock_change_and_inactive_product_preserve_cart(web,store):
+    csrf=signin(web)
+    response=web.post('/keranjang/tambah',data={'csrf':csrf,'product_id':1,'qty':3})
+    checkout=re.search(r'name="token" value="([^"]+)"',response.text).group(1)
+    db=store[0];db.get(Product,1).stok=1;db.commit()
+    response=web.get('/keranjang')
+    assert 'Stok berubah' in response.text and 'disabled>Buat pesanan' in response.text
+    assert web.post('/pesanan/buat',data={'csrf':csrf,'token':checkout}).status_code==400
+    db.get(Product,1).active=False;db.commit()
+    assert 'Barang tidak tersedia' in web.get('/keranjang').text
+    assert web.post('/pesanan/buat',data={'csrf':csrf,'token':checkout,'qty_1':1}).status_code==400
+    assert db.scalar(select(func.count()).select_from(Order))==0
+    assert 'Keranjang masih kosong' in web.post('/keranjang/hapus',data={'csrf':csrf,'product_id':1}).text
+
+def test_cart_stale_token_and_admin_remove_denied(web,store):
+    csrf=signin(web)
+    response=web.post('/keranjang/tambah',data={'csrf':csrf,'product_id':1,'qty':1})
+    checkout=re.search(r'name="token" value="([^"]+)"',response.text).group(1)
+    web.post('/keranjang/ubah',data={'csrf':csrf,'qty_1':2})
+    assert web.post('/pesanan/buat',data={'csrf':csrf,'token':checkout}).status_code==400
+    csrf=signin(web,True)
+    assert web.post('/keranjang/hapus',data={'csrf':csrf,'product_id':1}).status_code==403

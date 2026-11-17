@@ -453,7 +453,7 @@ def cart_rows(request,db):
         product=db.get(Product,int(key))
         if product:
             subtotal=product.harga*qty;total+=subtotal
-            rows.append(dict(product=product,qty=qty,subtotal=subtotal))
+            rows.append(dict(product=product,qty=qty,subtotal=subtotal,available=product.active and product.category.active and qty<=product.stok))
     return rows,total
 
 @app.post('/keranjang/tambah')
@@ -473,20 +473,45 @@ async def cart_add(request:Request,user:User=Depends(buyer),db:Session=Depends(g
 def cart_page(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     rows,total=cart_rows(request,db)
     token=request.session.setdefault('checkout_token',uuid4().hex)
-    return page(request,'cart.html',user=user,rows=rows,total=total,token=token)
+    return page(request,'cart.html',user=user,rows=rows,total=total,token=token,can_checkout=bool(rows) and all(row['available'] for row in rows))
+
+def submitted_cart(request,form,db):
+    cart={}
+    for key in request.session.get('cart',{}):
+        qty=integer(form.get('qty_'+key,request.session['cart'][key]),'Jumlah',True)
+        if qty:
+            product=db.get(Product,int(key))
+            if product is None or not product.active or not product.category.active or qty>product.stok:
+                raise RuleError('Barang tidak aktif atau stok tidak cukup. Sesuaikan jumlah atau hapus barang.')
+            cart[key]=qty
+    return cart
+
+def cart_problem(request,user,db,error):
+    request.session.setdefault('checkout_token',uuid4().hex)
+    # Render with the same account and saved cart; failed updates never save partially.
+    rows,total=cart_rows(request,db)
+    response=page(request,'cart.html',user=user,rows=rows,total=total,
+                  token=request.session['checkout_token'],can_checkout=bool(rows) and all(row['available'] for row in rows),error=str(error))
+    response.status_code=400
+    return response
 
 @app.post('/keranjang/ubah')
 async def cart_update(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
-    cart={}
-    for key in request.session.get('cart',{}):
-        qty=integer(form.get('qty_'+key,0),'Jumlah',True)
-        if qty:
-            product=db.get(Product,int(key))
-            if product is None or not product.active or not product.category.active or qty>product.stok:raise RuleError('Barang tidak aktif atau stok tidak cukup.')
-            cart[key]=qty
+    try:
+        cart=submitted_cart(request,form,db)
+    except RuleError as exc:
+        return cart_problem(request,user,db,exc)
     request.session['cart']=cart;request.session['checkout_token']=uuid4().hex
     return go('/keranjang',request,'Keranjang diperbarui.')
+
+@app.post('/keranjang/hapus')
+async def cart_remove(request:Request,user:User=Depends(buyer)):
+    form=await request.form();check_csrf(request,form)
+    key=str(integer(form.get('product_id'),'Produk'))
+    cart=dict(request.session.get('cart',{}));cart.pop(key,None)
+    request.session['cart']=cart;request.session['checkout_token']=uuid4().hex
+    return go('/keranjang',request,'Barang dihapus dari keranjang.')
 
 @app.post('/pesanan/buat')
 async def order_create(request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
@@ -495,7 +520,12 @@ async def order_create(request:Request,user:User=Depends(buyer),db:Session=Depen
     prior=db.scalar(select(Order).where(Order.member_id==user.id,Order.token==token))
     if prior:return go('/pesanan')
     if not secrets.compare_digest(token,request.session.get('checkout_token','!')):raise RuleError('Keranjang berubah. Muat ulang halaman keranjang.')
-    order=create_order(db,user.id,request.session.get('cart',{}),token)
+    try:
+        cart=submitted_cart(request,form,db)
+        order=create_order(db,user.id,cart,token)
+    except RuleError as exc:
+        db.rollback()
+        return cart_problem(request,user,db,exc)
     db.commit();request.session['cart']={};request.session.pop('checkout_token',None)
     return go('/pesanan',request,f'{order.kode} dibuat. Stok akan dikurangi saat admin mengonfirmasi.')
 

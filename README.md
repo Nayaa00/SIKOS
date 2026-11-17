@@ -220,3 +220,11 @@ digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip unt
 keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
 dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
 mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+### Keranjang anggota (Tugas 2)
+
+Keranjang sekarang memiliki foto barang, tombol Hapus per barang dan ringkasan belanja.
+Ubah jumlah lalu klik Perbarui keranjang, atau langsung Buat pesanan untuk memakai jumlah
+terbaru. Total pada layar mengikuti input; server memeriksa ulang harga, ketersediaan dan stok.
+Jika stok berubah atau barang nonaktif, sesuaikan jumlah atau hapus barang sebelum melanjutkan.
+Checkout tidak mengurangi stok. Pesanan menunggu konfirmasi admin.

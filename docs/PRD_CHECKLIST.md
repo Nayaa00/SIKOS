@@ -108,3 +108,21 @@ digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip unt
 keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
 dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
 mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+## Tugas 2: keranjang anggota
+
+Keranjang menampilkan foto, kategori, harga satuan, stok, jumlah, subtotal dan total.
+Tombol Hapus bekerja per barang, termasuk barang yang dinonaktifkan atau kehabisan stok.
+Jumlah 0 juga menghapus barang saat diperbarui. Ringkasan berubah saat jumlah diketik;
+server tetap menghitung harga dan total final. Checkout membaca jumlah terbaru langsung
+dari formulir sehingga tidak perlu menekan Perbarui terlebih dahulu.
+
+Perubahan keranjang divalidasi seluruhnya sebelum disimpan. Jika stok berubah atau barang
+nonaktif, keranjang tetap tersedia dengan pesan kesalahan dan tidak ada pesanan parsial.
+Submit ulang token pesanan yang sama tidak membuat pesanan kedua. Stok tidak berkurang
+saat checkout; snapshot harga tetap dibuat di server saat pesanan berhasil dibuat.
+
+Verifikasi 17 November 2026: 44 tes lulus, mencakup 41 tes SQLite/HTTP dan 3 tes integrasi
+konkurensi MariaDB XAMPP pada database uji khusus. MySQL 8 belum diuji. Smoke test browser
+halaman keranjang kosong berhasil; keranjang berisi barang dan tampilan HP belum diverifikasi
+secara visual pada perubahan ini. Satu warning deprecation Starlette/httpx.
