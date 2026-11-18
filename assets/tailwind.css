@@ -313,3 +313,181 @@
 }
 
 @layer components { .profit-summary { @apply tw:sm:grid-cols-2 tw:xl:grid-cols-4; } }
+
+@layer components {
+ .member-hero { @apply tw:relative tw:mb-7 tw:flex tw:min-h-72 tw:items-center tw:overflow-hidden tw:rounded-3xl tw:bg-linear-to-br tw:from-emerald-950 tw:to-teal-800 tw:p-7 tw:text-white tw:sm:p-10; }
+ .member-hero-content { @apply tw:relative tw:z-10 tw:min-w-0 tw:max-w-2xl; }
+ .member-hero-ring { @apply tw:pointer-events-none tw:absolute tw:-right-10 tw:-top-16 tw:size-64 tw:rounded-full tw:border-[36px] tw:border-solid tw:border-white/5; }
+ .member-hero-kicker { @apply tw:mb-4 tw:mt-0 tw:text-[10px] tw:font-bold tw:uppercase tw:tracking-[0.2em] tw:text-lime-200; }
+ .member-hero h1 { @apply tw:mb-4 tw:mt-0 tw:max-w-xl tw:break-words tw:text-3xl tw:font-bold tw:leading-tight tw:tracking-tight tw:text-white tw:sm:text-4xl; }
+ .member-hero-description { @apply tw:mb-7 tw:mt-0 tw:max-w-xl tw:text-sm tw:leading-7 tw:text-emerald-100/80; }
+ .member-hero-actions { @apply tw:flex tw:flex-wrap tw:gap-3; }
+ .member-hero-button { @apply tw:inline-flex tw:min-h-11 tw:items-center tw:justify-center tw:rounded-xl tw:px-5 tw:py-3 tw:text-sm tw:font-semibold tw:no-underline tw:transition tw:focus-visible:outline-2 tw:focus-visible:outline-offset-4 tw:focus-visible:outline-lime-200; }
+ .member-hero-primary { @apply tw:bg-lime-200 tw:text-emerald-950 tw:hover:bg-lime-100; }
+ .member-hero-secondary { @apply tw:border tw:border-solid tw:border-white/25 tw:bg-transparent tw:text-white tw:hover:bg-white/10; }
+}
+
+
+
+/* Compact sidebar: keep every admin menu reachable on laptop-height viewports. */
+@layer components {
+ .workspace-sidebar { @apply tw:p-4; }
+ .workspace-brand-row { @apply tw:shrink-0; }
+ .workspace-edition { @apply tw:mb-3 tw:mt-3 tw:px-3 tw:py-2 tw:text-[11px]; }
+ .workspace-sidebar nav { @apply tw:shrink-0; }
+ .nav-caption { @apply tw:mb-1 tw:mt-3 tw:text-[9px] tw:leading-3; }
+ .workspace-link { @apply tw:mb-0.5 tw:min-h-9 tw:gap-2.5 tw:rounded-lg tw:px-3 tw:py-2 tw:text-[13px] tw:leading-5; }
+ .workspace-link svg { @apply tw:size-[18px]; }
+ .workspace-sidebar-note { @apply tw:shrink-0 tw:gap-2 tw:pt-3 tw:text-[9px] tw:leading-4; }
+ .cooperative-dot { @apply tw:size-6 tw:border-[6px]; }
+ @media (min-width:1024px) and (max-height:760px) {
+  .workspace-sidebar { @apply tw:p-3; }
+  .workspace-edition { @apply tw:hidden; }
+  .workspace-link { @apply tw:min-h-8 tw:py-1.5 tw:text-xs; }
+  .nav-caption { @apply tw:mt-2; }
+  .workspace-brand-row { @apply tw:mb-2; }
+ }
+ @media (min-width:1024px) and (max-height:580px) {
+  .workspace-sidebar-note { @apply tw:hidden; }
+ }
+ @media (max-width:1023px) {
+  .workspace-link { @apply tw:min-h-11; }
+ }
+}
+
+/* Phone layout (390 x 844 reference): intentionally isolated from desktop rules. */
+@layer utilities {
+ @media (max-width:480px) {
+  .workspace { font-size:14px; }
+  .workspace .workspace-main { width:100%;min-width:0;padding:16px 12px 24px; }
+  .workspace .workspace-topbar { min-height:64px;padding:10px 12px;gap:8px;flex-wrap:nowrap; }
+  .workspace .workspace-breadcrumb { min-width:0;gap:8px; }
+  .workspace .breadcrumb-root,.workspace .breadcrumb-divider,.workspace .account-monogram { display:none; }
+  .workspace .workspace-breadcrumb strong { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:165px;font-size:12px; }
+  .workspace .workspace-account { flex-shrink:0;gap:8px; }
+  .workspace .workspace-logout { margin-left:0;min-height:40px;padding:8px 10px;font-size:11px; }
+  .workspace .mobile-nav-toggle,.workspace .notification-toggle { width:40px;height:40px; }
+  .workspace .workspace-main h1 { font-size:24px;line-height:1.2;letter-spacing:-.035em;margin-bottom:10px; }
+  .workspace .workspace-main h2 { font-size:15px;line-height:1.4; }
+  .workspace .page-intro,.workspace .inventory-heading,.workspace .catalog-result-heading { margin-bottom:16px;gap:10px; }
+  .workspace .page-intro p,.workspace .inventory-heading p { font-size:12px;line-height:1.6; }
+  .workspace .card { min-width:0;padding:14px;border-radius:14px;margin-bottom:14px; }
+  .workspace main button,.workspace main .btn { min-height:42px;padding:10px 12px;font-size:12px; }
+  .workspace main input:not([type=checkbox]):not([type=hidden]),.workspace main select,.workspace main textarea { min-width:0;max-width:100%;font-size:16px;min-height:42px; }
+  .workspace main label { font-size:12px; }
+  .workspace .form-grid { gap:12px; }
+  .workspace .small-note { font-size:10px;line-height:1.6; }
+  .workspace .notice { padding:12px;font-size:11px;line-height:1.65; }
+  .workspace .workspace-footer { margin-top:24px;gap:6px;font-size:9px; }
+
+  .workspace .member-hero { min-height:0;padding:20px 18px;margin-bottom:18px;border-radius:18px; }
+  .workspace .member-hero-content { max-width:100%; }
+  .workspace .member-hero-kicker { margin-bottom:10px;font-size:9px;letter-spacing:.15em; }
+  .workspace .member-hero h1 { margin:0 0 10px;font-size:23px;line-height:1.25;color:white; }
+  .workspace .member-hero-description { margin-bottom:16px;font-size:12px;line-height:1.65; }
+  .workspace .member-hero-ring { width:180px;height:180px;right:-65px;top:-70px;border-width:24px; }
+  .workspace .member-hero-actions { gap:8px; }
+  .workspace .member-hero-button { min-height:42px;padding:10px 12px;font-size:11px;border-radius:10px; }
+  .workspace-main section[aria-label="Ringkasan pesanan saya"] { gap:8px!important; }
+  .workspace-main section[aria-label="Ringkasan pesanan saya"]>a { padding:12px!important;border-radius:12px!important; }
+  .workspace-main section[aria-label="Ringkasan pesanan saya"] strong { font-size:24px!important;margin:6px 0!important; }
+  .workspace-main section[aria-label="Ringkasan pesanan saya"] .small-note { font-size:10px!important; }
+
+  .workspace .catalog-grid,.workspace .inventory-grid.inventory-management { grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
+  .workspace .catalog-card,.workspace .inventory-management .inventory-card { border-radius:14px;min-width:0;box-shadow:0 2px 5px #153e3407; }
+  .workspace .catalog-product-image,.workspace .inventory-management .inventory-photo { height:136px;min-height:136px;padding:28px 10px 10px; }
+  .workspace .catalog-category-badge,.workspace .inventory-management .inventory-category { left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 7px;font-size:8px;line-height:1.4; }
+  .workspace .catalog-stock-badge { right:6px;bottom:6px;font-size:9px;padding:3px 6px; }
+  .workspace .catalog-product-body,.workspace .inventory-management .inventory-body { padding:10px; }
+  .workspace .catalog-product-code { display:none; }
+  .workspace .inventory-code { font-size:8px;margin-bottom:5px; }
+  .workspace .catalog-product-body h3,.workspace .inventory-body h2 { min-height:36px;margin:0 0 6px;font-size:13px;line-height:18px; }
+  .workspace .catalog-product-label { max-width:100%;margin-bottom:8px;padding:3px 6px;font-size:9px;line-height:14px; }
+  .workspace .catalog-product-description { display:none; }
+  .workspace .catalog-product-price,.workspace .inventory-management .inventory-price { margin:8px 0 10px;font-size:16px;line-height:1.4; }
+  .workspace .catalog-product-price small,.workspace .inventory-price small { font-size:9px; }
+  .workspace .catalog-stock-info,.workspace .inventory-detail { gap:4px;font-size:9px;line-height:1.5;flex-wrap:wrap; }
+  .workspace .catalog-stock-info { padding:8px 0; }
+  .workspace .catalog-add-form { grid-template-columns:42px minmax(0,1fr);gap:6px;padding-top:10px; }
+  .workspace .catalog-qty-label { font-size:9px;gap:4px; }
+  .workspace .catalog-qty-label input { width:100%;padding:6px 4px;min-height:42px; }
+  .workspace .catalog-add-form button { min-height:42px;height:auto;padding:8px 4px;font-size:10px;line-height:1.3; }
+  .workspace .catalog-disabled-btn { padding:10px 4px;font-size:10px;min-height:42px; }
+  .workspace .featured-card-action { padding-top:10px; }
+  .workspace .featured-card-action .btn { min-height:40px;padding:8px 4px;font-size:10px; }
+  .workspace .inventory-management .inventory-actions { gap:6px;margin-top:10px;padding-top:10px; }
+  .workspace .inventory-management .inventory-actions .btn,.workspace .inventory-management .inventory-actions button { min-height:40px;padding:7px 4px;font-size:10px;line-height:1.3; }
+  .workspace .inventory-status { padding:3px 6px;font-size:9px; }
+  .workspace .inventory-filter,.workspace .catalog-filter { margin-bottom:16px;padding:12px;gap:8px;grid-template-columns:minmax(0,1fr) auto; }
+  .workspace .inventory-filter>.field:first-child,.workspace .catalog-filter>.catalog-search { grid-column:1/-1; }
+  .workspace .inventory-filter button,.workspace .catalog-filter button { width:100%; }
+  .workspace .inventory-toolbar { gap:10px;margin-bottom:16px;font-size:11px; }
+  .workspace .inventory-toolbar>div { display:flex;gap:6px; }
+  .workspace .inventory-toolbar .btn { min-height:36px;padding:7px 9px;font-size:10px; }
+
+  .workspace .dashboard-workspace { gap:14px; }
+  .workspace .dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
+  .workspace .metric-featured { grid-column:1/-1; }
+  .workspace .metric-tile { min-height:106px;padding:16px;border-radius:14px; }
+  .workspace .metric-tile strong { margin-top:10px;font-size:26px; }
+  .workspace .stats,.workspace .profit-summary { grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px; }
+  .workspace .stats .card,.workspace .profit-summary .card { padding:12px;margin:0; }
+  .workspace .stat-label { font-size:10px;line-height:1.5; }
+  .workspace .stat-value { font-size:22px; }
+  .workspace .profit-value { font-size:17px;margin-top:8px; }
+  .workspace .panel-heading { gap:8px;margin-bottom:14px; }
+  .workspace .chart-panel .sales-chart { height:210px; }
+  .workspace .chart-panel .period,.workspace .period { display:flex;flex-wrap:wrap;gap:8px;padding:10px;margin-bottom:14px; }
+  .workspace .period select { flex:1 1 100px;width:100px; }
+  .workspace .period input { flex:1 1 140px;width:140px; }
+  .workspace .period button { flex:1 1 auto; }
+  .workspace .action-panel { padding:18px;border-radius:14px; }
+  .workspace .pending-number { font-size:40px; }
+  .workspace .rail-item { gap:8px;padding:10px 0; }
+
+  .workspace .order-card { padding:0; }
+  .workspace .order-heading { padding:14px 14px 0;gap:8px; }
+  .workspace .order-heading h2 { font-size:12px; }
+  .workspace .order-card>p { padding:0 14px;margin-bottom:14px;font-size:10px; }
+  .workspace .order-items,.workspace .order-summary { padding:14px;min-width:0; }
+  .workspace .order-summary>strong { font-size:21px; }
+  .workspace .member-sale-content { padding:14px; }
+  .workspace .member-sale-content .transaction-summary { grid-template-columns:repeat(2,minmax(0,1fr));padding:12px;gap:10px;margin:14px 0; }
+  .workspace .member-sale-content .transaction-summary strong { font-size:16px; }
+  .workspace .section-stamp { padding:10px 14px;font-size:24px; }
+  .workspace .history-filter { gap:8px;margin:16px 0;padding:12px; }
+  .workspace .history-filter select { width:100%;min-width:0; }
+  .workspace .table-scroll { min-width:0;max-width:100%;overflow-x:auto; }
+  .workspace table th,.workspace table td { padding:10px 9px;font-size:10px; }
+
+  .workspace .cart-heading { gap:10px;margin-bottom:16px; }
+  .workspace .cart-layout { gap:12px; }
+  .workspace .cart-item { gap:10px;padding:12px;align-items:flex-start; }
+  .workspace .cart-photo { width:64px;height:80px;border-radius:10px; }
+  .workspace .cart-details h2 { font-size:13px;margin:6px 0; }
+  .workspace .cart-details p { font-size:10px;line-height:1.5; }
+  .workspace .cart-controls { gap:6px;flex-wrap:wrap; }
+  .workspace .cart-controls input { width:54px; }
+  .workspace .cart-subtotal { font-size:13px; }
+  .workspace .cart-summary { padding:14px; }
+  .workspace .cart-total { font-size:16px;padding:14px 0; }
+  .workspace .profile-workspace { padding:16px;gap:18px; }
+  .workspace .profile-avatar { width:48px;height:48px; }
+  .workspace .notification-item { gap:8px;padding:12px 8px; }
+  .workspace .notification-item a { font-size:12px; }
+ }
+}
+
+/* Compact phone profile header and order follow-up card. */
+@layer utilities {
+ @media (max-width:480px) {
+  .workspace .profile-workspace .profile-user { align-items:center;justify-content:center;text-align:center;gap:10px;padding-bottom:16px;margin-bottom:0; }
+  .workspace .profile-user-info { width:100%;text-align:center; }
+  .workspace .profile-user-info h2,.workspace .profile-user-info p { margin-left:auto;margin-right:auto; }
+  .workspace .action-panel { display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:12px;row-gap:10px;padding:14px;margin-bottom:14px; }
+  .workspace .action-panel .page-kicker { grid-column:1/-1;margin:0;font-size:8px;line-height:1.4; }
+  .workspace .action-panel .pending-number { margin:0;font-size:30px;line-height:1; }
+  .workspace .action-panel h2 { margin:0;font-size:11px;line-height:1.45; }
+  .workspace .action-panel>a { grid-column:1/-1;min-height:36px;padding:8px 10px;font-size:10px; }
+ }
+}

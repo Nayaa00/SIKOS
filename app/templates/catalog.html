@@ -3,21 +3,8 @@
 <!-- ==============================
      HEADER KATALOG
 ============================== -->
-<section class="catalog-hero">
-    <div class="catalog-hero-content">
-        <div class="eyebrow">KATALOG ANGGOTA</div>
-
-        <h1>Kebutuhan harian, lebih dekat.</h1>
-
-        <p class="muted">
-            Pilih produk kebutuhanmu, masukkan ke keranjang, lalu buat pesanan dengan mudah.
-        </p>
-    </div>
-
-    <a href="/keranjang" class="btn catalog-cart-btn">
-        Buka Keranjang →
-    </a>
-</section>
+{% from '_member_hero.html' import member_hero %}
+{{ member_hero('Katalog anggota','Kebutuhan harian, lebih dekat.','Pilih produk kebutuhanmu, masukkan ke keranjang, lalu buat pesanan dengan mudah.') }}
 
 
 <!-- ==============================

@@ -1363,10 +1363,24 @@ def test_monthly_plan_admin_only_not_actual_expense(web,store):
     from app.models import MonthlyPlan,OperatingExpense
     signin(web);assert web.post('/biaya-operasional/rencana',data={}).status_code==403
     csrf=signin(web,True)
-    page=web.get('/biaya-operasional');assert 'SIMULASI BULANAN' in page.text
+    page=web.get('/biaya-operasional');assert 'SIMULASI BULANAN' not in page.text and 'Simpan rencana' not in page.text
     assert store[0].get(MonthlyPlan,1) is None
     assert web.post('/biaya-operasional/rencana',data={'csrf':csrf,'budget':1000000,'target_revenue':15000000}).status_code==200
     assert store[0].get(MonthlyPlan,1).budget==1000000
     assert store[0].scalar(select(func.count()).select_from(OperatingExpense))==0
     report=web.get('/laporan').text
-    assert 'Omzet minimal impas' in report and '<span class="stat-label">Laba kotor</span>' not in report
+    assert 'Omzet minimal impas' not in report and '<span class="stat-label">Laba kotor</span>' not in report
+
+
+def test_stylesheet_version_changes_after_build(web,tmp_path,monkeypatch):
+    import importlib
+    module=importlib.import_module('app.main')
+    css=tmp_path/'static'/'tailwind.css';css.parent.mkdir();css.write_text('/* CSS fixture */',encoding='utf-8')
+    monkeypatch.setattr(module,'ROOT',tmp_path)
+    first=web.get('/login').text
+    version=re.search(r'/static/tailwind.css\?v=(\d+)',first).group(1)
+    assert version==str(css.stat().st_mtime_ns)
+    next_time=css.stat().st_mtime_ns+1000000000
+    os.utime(css,ns=(next_time,next_time))
+    second=web.get('/login').text
+    assert re.search(r'/static/tailwind.css\?v=(\d+)',second).group(1)!=version

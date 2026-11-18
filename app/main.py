@@ -42,7 +42,7 @@ templates.env.filters['product_image']=product_image
 templates.env.filters['default_product_image']=default_product_image
 
 def page(request,name,**context):
-    context.update(csrf=csrf_token(request),notice=request.session.pop('notice',None),category_choices=CATEGORIES)
+    context.update(csrf=csrf_token(request),notice=request.session.pop('notice',None),category_choices=CATEGORIES,css_version=(ROOT/'static'/'tailwind.css').stat().st_mtime_ns)
     user=context.get('user')
     if user is not None and object_session(user) is not None:
         from .notifications import inbox, unread

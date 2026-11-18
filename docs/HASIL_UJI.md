@@ -411,3 +411,10 @@ isi database lokal tidak disertakan dalam Git; perintah pengisian data tidak dij
 secara otomatis setelah pull. Snapshot HPP yang sudah ada dipertahankan.
 
 Verifikasi worktree cipa: 101 tes lulus dalam 82.53 detik (89 SQLite/HTTP + 12 MariaDB XAMPP), 1 warning deprecation. MySQL 8 belum diuji. git diff --check lulus.
+
+## Tampilan mobile 390 x 844 (18 November 2026)
+- Penyesuaian CSS dibatasi layar maksimal 480 px; tampilan laptop dipertahankan.
+- Kartu produk dua kolom, profil rata tengah, kartu tindak lanjut lebih ringkas, dan banner anggota memakai tema bersama.
+- Build Tailwind berhasil. Pengujian integrasi worktree: 102 passed, termasuk suite database MariaDB XAMPP (bukan MySQL 8).
+- Pratinjau browser memakai bingkai 390 x 844; pemeriksaan visual katalog anggota terbatas karena sesi browser admin.
+
