@@ -1,6 +1,6 @@
 # SIKOS — Sistem Informasi Koperasi Sembako
 
-Implementasi PRD 1.0 untuk studi kasus Koperasi Sejahtera. Proyek ini memakai FastAPI + MySQL, HTML/Jinja2 + Bootstrap/CSS/JavaScript, Pandas/openpyxl dan Chart.js.
+Implementasi PRD 1.0 untuk studi kasus Koperasi Sejahtera. Proyek ini memakai FastAPI + MySQL, HTML/Jinja2 + Tailwind CSS/JavaScript, Pandas/openpyxl dan Chart.js.
 
 Baca `docs/PRD_CHECKLIST.md` untuk pemetaan kebutuhan, keputusan bisnis, dan batas pengujian. ERD serta alur status ada di `docs/ERD.md`. Instruksi untuk melanjutkan di Codex ada di `file.txt`.
 
@@ -240,3 +240,11 @@ mencatat Lunas dan kembalian Rp0 serta menyimpan bukti khusus admin. Fitur tidak
 langsung ke GoPay/QRIS dan tidak memindahkan uang. Kamera memakai izin browser; jika tidak
 tersedia gunakan unggah gambar JPG/PNG/WebP maksimal 5 MB. Untuk pembaruan database lama,
 install requirements terbaru dan jalankan `python -m app.cli migrate-payments`.
+
+## Pengembangan tampilan Tailwind (migrasi bertahap)
+
+Sesuai revisi kebutuhan pengguna, Tailwind kini menjadi arah pengembangan UI.
+Layout utama dan seluruh komponen halaman memakai Tailwind build lokal. CSS lama
+hanya diimpor pada layer prioritas rendah untuk layout widget khusus. Bootstrap sudah dilepas. Lihat docs/TAILWIND.md untuk setup
+Windows CMD, npm lokal, build/watch dan urutan migrasi. Jangan mengedit tailwind.css hasil
+build secara manual; ubah assets/tailwind.css atau utility class template, lalu build ulang.

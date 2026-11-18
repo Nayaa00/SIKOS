@@ -1,115 +1,16 @@
- {% extends "base.html" %} {% block title %}Dashboard Anggota · SIKOS{% endblock %} {% block content %}
-
-<!-- WELCOME SECTION -->
-<section class="member-welcome">
-    <div class="member-welcome-content">
-        <div class="eyebrow">KOPERASI SEJAHTERA</div>
-        <h1>Selamat datang, {{ user.nama }}!</h1>
-        <p class="muted">
-            Selamat berbelanja dan memenuhi kebutuhan harianmu bersama Koperasi SIKOS.
-        </p>
-        <a href="/katalog" class="btn member-main-btn">
-            Lihat Katalog Produk →
-        </a>
-    </div>
-
-    <div class="member-welcome-icon">🛍️</div>
-</section>
-
-<section aria-label="Ringkasan pesanan saya" class="stats member-order-stats">
-{% for state in ['Menunggu konfirmasi','Dikonfirmasi','Selesai','Dibatalkan'] %}
-<a class="card member-stat-card" href="/pesanan?status={{ state|urlencode }}"><span class="small-note">{{ state }}</span><strong class="stat-value">{{ order_counts.get(state,0) }}</strong><span class="small-note">Lihat pesanan →</span></a>
-{% endfor %}
-</section>
-<!-- FEATURED PRODUCTS -->
-<section class="member-section-heading member-product-heading">
-    <div>
-        <div class="eyebrow">BELANJA KEBUTUHAN HARIAN</div>
-        <h2>Produk Pilihan</h2>
-        <p class="muted">Beberapa produk yang tersedia di koperasi.</p>
-    </div>
-
-    <a href="/katalog" class="member-text-link">
-        Lihat semua produk →
-    </a>
-</section>
-
-<section class="products-grid member-featured-grid">
-
-    {% for product in featured_products %}
-
-    <article class="inventory-card">
-
-        <div class="inventory-photo">
-            <img src="{{ product|product_image }}" alt="{{ product.nama }}" loading="lazy" data-fallback="{{ product|default_product_image }}">
-
-            <span class="inventory-category">
-                {{ product.category.nama }}
-            </span>
-        </div>
-
-        <div class="inventory-body">
-
-            <div class="inventory-code">
-                {{ product.kode }}
-            </div>
-
-            <h2>{{ product.nama }}</h2>
-
-            {% if product.label %}
-            <div class="inventory-label">
-                {{ product.label }}
-            </div>
-            {% endif %}
-
-            <div class="inventory-price">
-                {{ product.harga|rupiah }}
-                <small>/ {{ product.satuan }}</small>
-            </div>
-
-            <div class="inventory-detail">
-                <span>Stok tersedia</span>
-
-                <strong class="{% if product.stok == 0 %}stock-empty{% endif %}">
-                    {% if product.stok > 0 %}
-                        {{ product.stok }} {{ product.satuan }}
-                    {% else %}
-                        Stok habis
-                    {% endif %}
-                </strong>
-            </div>
-
-            <div class="inventory-actions">
-                <a href="/katalog" class="btn">
-                    Lihat katalog
-                </a>
-            </div>
-
-        </div>
-    </article>
-
-    {% else %}
-
-    <!-- EMPTY STATE -->
-    <div class="member-empty-state">
-
-        <div class="member-empty-icon">🛍️</div>
-
-        <h3>Belum Ada Produk</h3>
-
-        <p>
-            Belum ada produk yang tersedia saat ini. Silakan kunjungi katalog kembali nanti.
-        </p>
-
-        <a href="/katalog" class="btn member-main-btn">
-            Lihat Katalog Produk →
-        </a>
-
-    </div>
-
-    {% endfor %}
-
-</section>
-
-<p class="small-note catalog-photo-note">Foto ilustrasi sesuai jenis produk. <a href="/static/products/credits.html">Sumber dan lisensi foto</a></p>
+{% extends 'base.html' %}{% block title %}Dashboard Anggota · SIKOS{% endblock %}{% block content %}
+<section class="tw:relative tw:overflow-hidden tw:rounded-3xl tw:bg-linear-to-br tw:from-emerald-950 tw:to-teal-800 tw:p-7 tw:text-white tw:sm:p-10">
+<div class="tw:absolute tw:-right-10 tw:-top-16 tw:size-64 tw:rounded-full tw:border-[36px] tw:border-solid tw:border-white/5" aria-hidden="true"></div>
+<p class="tw:mb-3 tw:text-xs tw:font-semibold tw:uppercase tw:tracking-[0.2em] tw:text-lime-200">Belanja bersama koperasi</p>
+<h1 class="tw:relative tw:mb-4 tw:max-w-xl tw:text-3xl tw:font-bold tw:tracking-tight tw:text-white tw:sm:text-4xl">Selamat datang, {{ user.nama }}!</h1>
+<p class="tw:relative tw:mb-7 tw:max-w-lg tw:text-sm tw:leading-7 tw:text-emerald-100/80">Kebutuhan harian lebih dekat. Pilih barang, pantau pesanan, dan belanja dengan nyaman.</p>
+<div class="tw:relative tw:flex tw:flex-wrap tw:gap-3"><a href="/katalog" class="tw:rounded-xl tw:bg-lime-200 tw:px-5 tw:py-3 tw:text-sm tw:font-bold tw:text-emerald-950 tw:no-underline tw:hover:bg-lime-100">Lihat Katalog Produk →</a><a href="/keranjang" class="tw:rounded-xl tw:border tw:border-solid tw:border-white/25 tw:px-5 tw:py-3 tw:text-sm tw:font-medium tw:text-white tw:no-underline tw:hover:bg-white/10">Buka keranjang</a></div></section>
+<div class="tw:mb-4 tw:mt-9"><h2 class="tw:mb-1 tw:text-lg tw:font-bold">Aktivitas belanja</h2><p class="tw:m-0 tw:text-sm tw:text-slate-500">Ringkasan pesanan Anda saat ini.</p></div>
+<section aria-label="Ringkasan pesanan saya" class="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:[&_strong]:block tw:[&_strong]:text-3xl tw:[&_strong]:text-emerald-950 tw:[&_.small-note]:text-xs">
+{% for state in ['Menunggu konfirmasi','Dikonfirmasi','Selesai','Dibatalkan'] %}<a href="/pesanan?status={{ state|urlencode }}" class="tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:p-5 tw:text-slate-700 tw:no-underline tw:transition tw:hover:border-emerald-400 tw:hover:shadow-md"><span class="small-note">{{ state }}</span><strong class="stat-value">{{ order_counts.get(state,0) }}</strong><span class="small-note">Lihat pesanan →</span></a>{% endfor %}</section>
+<section class="tw:mb-5 tw:mt-10 tw:flex tw:flex-wrap tw:items-end tw:justify-between tw:gap-4"><div><h2 class="tw:mb-1 tw:text-xl tw:font-bold">Produk Pilihan</h2><p class="tw:m-0 tw:text-sm tw:text-slate-500">Lengkapi kebutuhan harian Anda.</p></div><a href="/katalog" class="tw:text-sm tw:font-semibold tw:text-emerald-800 tw:no-underline tw:hover:underline">Lihat semua produk →</a></section>
+<section class="tw:grid tw:grid-cols-1 tw:gap-5 tw:sm:grid-cols-2 tw:xl:grid-cols-4">
+{% for product in featured_products %}<article class="tw:overflow-hidden tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:transition tw:hover:shadow-lg"><div class="tw:relative tw:flex tw:h-48 tw:items-center tw:justify-center tw:bg-stone-100 tw:p-5"><img class="tw:h-full tw:w-full tw:object-contain" src="{{ product|product_image }}" data-fallback="{{ product|default_product_image }}" alt="{{ product.nama }}" loading="lazy"><span class="tw:absolute tw:left-3 tw:top-3 tw:rounded-full tw:bg-white tw:px-3 tw:py-1 tw:text-[10px] tw:font-semibold tw:text-emerald-900">{{ product.category.nama }}</span></div><div class="tw:p-5"><p class="tw:mb-1 tw:text-xs tw:text-slate-400">{{ product.label }}</p><h3 class="tw:mb-3 tw:text-base tw:font-semibold">{{ product.nama }}</h3><p class="tw:mb-3 tw:text-xl tw:font-bold tw:text-emerald-800">{{ product.harga|rupiah }} <span class="tw:text-xs tw:font-normal tw:text-slate-400">/ {{ product.satuan }}</span></p><p class="tw:mb-4 tw:text-xs tw:text-slate-500">Stok tersedia {{ product.stok }} {{ product.satuan }}</p><a href="/katalog" class="tw:block tw:rounded-lg tw:bg-emerald-50 tw:px-4 tw:py-2 tw:text-center tw:text-sm tw:font-semibold tw:text-emerald-800 tw:no-underline tw:hover:bg-emerald-100">Lihat katalog</a></div></article>
+{% else %}<div class="tw:col-span-full tw:rounded-2xl tw:border tw:border-dashed tw:border-stone-300 tw:bg-white tw:p-10 tw:text-center tw:text-slate-500">Belum ada produk tersedia.</div>{% endfor %}</section>
+<p class="tw:mt-5 tw:text-xs tw:text-slate-400">Foto ilustrasi produk. <a href="/static/products/credits.html">Sumber dan lisensi foto</a></p>
 {% endblock %}

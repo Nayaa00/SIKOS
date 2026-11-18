@@ -268,3 +268,12 @@ beserta kembalian, Cashless dengan foto/unggah bukti, migrasi, dependency dan pe
 
 Verifikasi final sebelum push dzikri: 72 passed, 1 warning dalam 63.44 detik,
 terdiri dari 64 tes SQLite/HTTP dan 8 tes MariaDB XAMPP. MySQL 8 belum diuji.
+
+## Desain Tailwind lintas halaman — 18 November 2026
+
+Branch codex/tailwind-ui memakai Tailwind build lokal untuk layout dan sistem komponen
+seluruh halaman. Bootstrap sudah dilepas dari base. CSS historis ada di layer legacy untuk
+layout widget, desain baru di layer components/utilities. Backend, stok, pembayaran dan
+schema database tidak diubah oleh migrasi tampilan ini. Build berhasil; 72 tes lulus,
+termasuk 8 MariaDB XAMPP (56.58 detik). Lihat docs/TAILWIND.md untuk setup, batas verifikasi
+visual dan peringatan dependency build. Tidak ada push pada tahap ini.

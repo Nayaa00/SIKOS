@@ -1,0 +1,12 @@
+{
+  "name": "sikos-ui",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./assets/tailwind.css -o ./app/static/tailwind.css --minify",
+    "watch:css": "tailwindcss -i ./assets/tailwind.css -o ./app/static/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.3.0",
+    "@tailwindcss/cli": "^4.3.0"
+  }
+}

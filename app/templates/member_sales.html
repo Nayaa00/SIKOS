@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% block title %}Transaksi Saya · SIKOS{% endblock %}{% block content %}
 <span class="eyebrow">RIWAYAT BELANJA</span><h1>Transaksi Saya</h1><p class="muted">Transaksi tercatat setelah admin mengonfirmasi pesanan. Pembayaran dicatat otomatis ketika admin menyelesaikan pesanan.</p>
 <p class="small-note">{{ window.total }} transaksi · <a href="/pesanan">Lihat pesanan saya</a></p>
-{% for sale,order in rows %}<article class="card order-card"><div class="toolbar"><h2>{{ order.kode }}</h2><span class="pill">{{ order.status }}</span></div>
+{% for sale,order in rows %}<article class="card order-card"><div class="toolbar"><h2>{{ order.kode }}</h2><span class="pill" data-status="{{ order.status }}">{{ order.status }}</span></div>
 <p class="small-note">Konfirmasi: {{ sale.created_at|wib }}</p>
 {% if not sale.valid %}<p class="notice form-error">Transaksi dibatalkan dan tidak dihitung dalam penjualan.{% if sale.status_pembayaran=='Lunas' %} Pembayaran sebelumnya tercatat; hubungi koperasi untuk pengembalian uang.{% endif %}</p>{% endif %}
 <div class="transaction-summary"><div><span class="small-note">Total transaksi</span><strong>{{ sale.total|rupiah }}</strong></div><div><span class="small-note">Pembayaran {{ sale.metode_pembayaran }}</span><strong>{{ sale.status_pembayaran }}</strong></div></div>

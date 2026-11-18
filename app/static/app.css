@@ -1430,7 +1430,7 @@ button:disabled {
         margin-bottom: 25px;
     }
     .profile-page .profile-heading h2 {
-        font-size: 25px !important;
+        font-size: 25px ;
         font-weight: 750;
         color: #173f35;
         margin: 0 0 7px;
@@ -1441,7 +1441,7 @@ button:disabled {
         margin: 0;
     }
     .profile-page .profile-card {
-        display: block !important;
+        display: block ;
         width: 100%;
         background: #ffffff;
         border: 1px solid #e5eae2;
@@ -1450,9 +1450,9 @@ button:disabled {
         box-shadow: 0 5px 22px rgba(25, 55, 40, .045);
     }
     .profile-page .profile-user {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
+        display: flex ;
+        flex-direction: row ;
+        align-items: center ;
         gap: 16px;
         padding-bottom: 25px;
         margin-bottom: 27px;
@@ -1463,7 +1463,7 @@ button:disabled {
         height: 58px;
         min-width: 58px;
         border-radius: 50%;
-        display: flex !important;
+        display: flex ;
         align-items: center;
         justify-content: center;
         background: #e8eddf;
@@ -1472,7 +1472,7 @@ button:disabled {
         font-weight: 750;
     }
     .profile-page .profile-user-info h3 {
-        font-size: 17px !important;
+        font-size: 17px ;
         font-weight: 700;
         color: #263d33;
         margin: 0 0 5px;
@@ -1482,14 +1482,14 @@ button:disabled {
         color: #166a56;
     }
     .profile-page .profile-section {
-        display: block !important;
+        display: block ;
         width: 100%;
     }
     .profile-page .profile-section-title {
         margin-bottom: 22px;
     }
     .profile-page .profile-section-title h3 {
-        font-size: 17px !important;
+        font-size: 17px ;
         font-weight: 700;
         color: #263d33;
         margin: 0 0 6px;
@@ -1500,31 +1500,31 @@ button:disabled {
         margin: 0;
     }
     .profile-page .profile-form-grid {
-        display: grid !important;
+        display: grid ;
         grid-template-columns: 1fr;
         width: 100%;
         gap: 19px;
     }
     .profile-page .profile-field {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: stretch !important;
+        display: flex ;
+        flex-direction: column ;
+        align-items: stretch ;
         width: 100%;
         min-width: 0;
-        margin: 0 !important;
-        gap: 0 !important;
+        margin: 0 ;
+        gap: 0 ;
     }
     .profile-page .profile-field label {
-        display: block !important;
+        display: block ;
         width: 100%;
         font-size: 13px;
         font-weight: 650;
         color: #405349;
-        margin: 0 0 8px !important;
+        margin: 0 0 8px ;
     }
     .profile-page .profile-field input {
-        display: block !important;
-        width: 100% !important;
+        display: block ;
+        width: 100% ;
         height: 46px;
         min-height: 46px;
         padding: 11px 14px;
@@ -1534,7 +1534,7 @@ button:disabled {
         color: #293c32;
         font-size: 14px;
         outline: none;
-        margin: 0 !important;
+        margin: 0 ;
     }
     .profile-page .profile-field input:focus {
         border-color: #166a56;
@@ -1556,7 +1556,7 @@ button:disabled {
         margin: 30px 0;
     }
     .profile-page .profile-actions {
-        display: flex !important;
+        display: flex ;
         justify-content: flex-end;
         align-items: center;
         gap: 10px;
