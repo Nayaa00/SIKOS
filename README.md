@@ -1,6 +1,6 @@
 # SIKOS — Sistem Informasi Koperasi Sembako
 
-Implementasi PRD 1.0 untuk studi kasus Koperasi Sejahtera. Proyek ini memakai FastAPI + MySQL, HTML/Jinja2 + Bootstrap/CSS/JavaScript, Pandas/openpyxl dan Chart.js.
+Implementasi PRD 1.0 untuk studi kasus Koperasi Sejahtera. Proyek ini memakai FastAPI + MySQL, HTML/Jinja2 + Tailwind CSS/JavaScript, Pandas/openpyxl dan Chart.js.
 
 Baca `docs/PRD_CHECKLIST.md` untuk pemetaan kebutuhan, keputusan bisnis, dan batas pengujian. ERD serta alur status ada di `docs/ERD.md`. Instruksi untuk melanjutkan di Codex ada di `file.txt`.
 
@@ -68,7 +68,7 @@ python -m uvicorn app.main:app --reload
 4. Produk: tambah/edit data produk. Stok awal masuk catatan stok. Untuk gambar opsional, isi URL HTTPS gambar.
 5. Persediaan: catat masuk/keluar dengan alasan. Stok negatif ditolak. Audit mencatat pelaku dan stok sesudah perubahan.
 6. Impor Excel: unduh template, isi dan unggah. Header wajib `kode,nama,label,kategori,harga,stok,satuan`, deskripsi opsional. Kolom boleh beda urutan. Harga rupiah bulat, stok integer nonnegatif. Maksimal 5.000 baris / 10 MB. Ubah formula menjadi nilai.
-7. Pesanan: konfirmasi pesanan anggota. Konfirmasi mengurangi stok tepat sekali dan mencatat transaksi. Selesaikan setelah barang diserahkan.
+7. Pesanan: konfirmasi pesanan anggota. Konfirmasi mengurangi stok tepat sekali dan mencatat transaksi. Selesaikan setelah pembayaran tunai dan penyerahan selesai; pembayaran otomatis Lunas sebesar total pesanan dengan kembalian Rp0.
 8. Pembatalan sebelum konfirmasi tidak memengaruhi stok. Pembatalan setelah konfirmasi mengembalikan stok tepat sekali dan membatalkan validitas transaksi. Pesanan Selesai tidak dapat dibatalkan pada versi ini.
 9. Transaksi menampilkan catatan valid/batal. Laporan hanya menghitung transaksi valid dari tanggal konfirmasi.
 
@@ -78,7 +78,10 @@ python -m uvicorn app.main:app --reload
 2. Cari produk atau pilih kategori di katalog. Produk habis ditandai.
 3. Masukkan barang ke keranjang. Ubah jumlah, klik Perbarui keranjang. Isi 0 untuk menghapus baris.
 4. Klik Buat pesanan. Harga snapshot disimpan, stok belum dikurangi sampai konfirmasi admin.
-5. Lihat status dan rincian pesanan sendiri melalui Pesanan.
+5. Dashboard menampilkan jumlah pesanan pribadi per status. Buka Pesanan Saya untuk melihat rincian, filter status dan halaman riwayat (20 pesanan per halaman).
+6. Anggota dapat membatalkan pesanan sendiri yang masih Menunggu konfirmasi. Setelah admin memprosesnya, pembatalan oleh anggota ditolak. Pembatalan menunggu tidak mengubah stok.
+7. Transaksi Saya menampilkan transaksi milik akun sendiri setelah dikonfirmasi, rincian harga saat pesan, pembayaran tunai dan kembalian. Transaksi dibatalkan tetap terlihat sebagai riwayat dan tidak dihitung dalam penjualan.
+8. Profile menampilkan nomor anggota dan role tetap; nama, email, telepon dan alamat dapat diperbarui. Ubah password membutuhkan password lama dan konfirmasi password baru. Kesalahan form mempertahankan input non-password.
 
 ## Demonstrasi yang disarankan
 
@@ -105,7 +108,7 @@ Test memakai SQLite sementara agar cepat dijalankan tanpa mengubah data MySQL. P
 - Keranjang belum mereservasi stok. Stok diperiksa saat pesan dan saat konfirmasi. Jika stok sudah habis ketika admin mengonfirmasi, seluruh konfirmasi ditolak.
 - Impor kode duplikat ditolak, tidak memperbarui barang/stok yang telah ada. Gunakan Edit atau catatan stok masuk untuk barang lama. File Excel sistem sebelumnya belum disediakan, jadi format header spesifik belum dipetakan.
 - Data transaksi/audit tidak dihapus. Master data menggunakan soft delete.
-- Pada prototipe ini semua daftar dimuat untuk skala praktikum. Riwayat stok menampilkan 300 entri terbaru. Pagination dapat ditambahkan jika data uji besar.
+- Pesanan dan Transaksi Saya dibatasi 20 entri per halaman. Produk dan daftar master masih dimuat untuk skala praktikum. Riwayat stok menampilkan 300 entri terbaru.
 - Bootstrap/Chart.js dari CDN memerlukan internet untuk grafik. Tabel/form dasar memakai CSS lokal. Smoke test navigasi/empty state dan grafik telah dilakukan di browser lokal; lihat docs/HASIL_UJI.md.
 - Proyek untuk demonstrasi lokal. Untuk deployment publik perlu HTTPS, COOKIE_SECURE=1, konfigurasi server dan manajemen secret, rate limiting login, serta pengujian tambahan.
 
@@ -220,3 +223,28 @@ digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip unt
 keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
 dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
 mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+### Keranjang anggota (Tugas 2)
+
+Keranjang sekarang memiliki foto barang, tombol Hapus per barang dan ringkasan belanja.
+Ubah jumlah lalu klik Perbarui keranjang, atau langsung Buat pesanan untuk memakai jumlah
+terbaru. Total pada layar mengikuti input; server memeriksa ulang harga, ketersediaan dan stok.
+Jika stok berubah atau barang nonaktif, sesuaikan jumlah atau hapus barang sebelum melanjutkan.
+Checkout tidak mengurangi stok. Pesanan menunggu konfirmasi admin.
+
+### Cashless dengan bukti
+
+Pada Selesaikan, pilih Cashless, ambil foto/unggah gambar bukti lalu simpan setelah memastikan pembayaran
+sudah masuk dengan nominal sesuai setelah memeriksa aplikasi merchant. Simpan & selesaikan
+mencatat Lunas dan kembalian Rp0 serta menyimpan bukti khusus admin. Fitur tidak terhubung
+langsung ke GoPay/QRIS dan tidak memindahkan uang. Kamera memakai izin browser; jika tidak
+tersedia gunakan unggah gambar JPG/PNG/WebP maksimal 5 MB. Untuk pembaruan database lama,
+install requirements terbaru dan jalankan `python -m app.cli migrate-payments`.
+
+## Pengembangan tampilan Tailwind (migrasi bertahap)
+
+Sesuai revisi kebutuhan pengguna, Tailwind kini menjadi arah pengembangan UI.
+Layout utama dan seluruh komponen halaman memakai Tailwind build lokal. CSS lama
+hanya diimpor pada layer prioritas rendah untuk layout widget khusus. Bootstrap sudah dilepas. Lihat docs/TAILWIND.md untuk setup
+Windows CMD, npm lokal, build/watch dan urutan migrasi. Jangan mengedit tailwind.css hasil
+build secara manual; ubah assets/tailwind.css atau utility class template, lalu build ulang.

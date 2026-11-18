@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint
+from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
 
 def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -92,6 +93,9 @@ class Sale(Base):
     jumlah_bayar: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
     kembalian: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    payment_proof: Mapped[bytes | None] = mapped_column(LargeBinary().with_variant(MEDIUMBLOB(), 'mysql'),nullable=True,deferred=True)
+    payment_verified_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'),nullable=True)
+
 
 class StockMovement(Base):
     __tablename__ = 'stock_movements'

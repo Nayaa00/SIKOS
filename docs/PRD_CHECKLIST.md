@@ -36,9 +36,7 @@ Acuan: PRODUCT REQUIREMENTS DOCUMENT.docx yang dilampirkan pengguna. Isi identik
 
 ## Verifikasi dan keterbatasan
 
-Pengujian otomatis 22 skenario SQLite (ditambah 2 skenario integrasi MySQL opsional) memakai SQLite temporer dengan tabel SQLAlchemy yang sama. Cakupan mencakup service bisnis, rollback, status, idempotensi, impor parsial, akun, role, CSRF, halaman, keranjang, transaksi, batas periode dan ekspor.
-
-MariaDB XAMPP 10.4.32 telah diuji dengan dua koneksi dan smoke test navigasi/empty state browser telah dilakukan. MySQL 8 nyata belum diuji. Lihat docs/HASIL_UJI.md untuk hasil dan batas verifikasi. Tidak ada kredensial atau data pribadi yang dibundel.
+Verifikasi terbaru 17 November 2026: 64 tes lulus (59 SQLite/HTTP dan 5 integrasi MariaDB XAMPP 10.4.32). Mencakup hak akses, privasi transaksi, validasi form, stok, snapshot, impor, laporan, pembatalan dan konkurensi nyata. MySQL 8 belum diuji. Lihat docs/HASIL_UJI.md untuk batas smoke test browser. Tidak ada kredensial akun nyata yang dibundel.
 
 
 ## Label dan kategori produk
@@ -108,3 +106,76 @@ digabungkan. Hasil tetap berupa CardView, meliputi produk aktif maupun arsip unt
 keperluan administrasi. Filter menyertakan kategori nonaktif agar datanya tetap dapat
 dikelola. Jumlah hasil, pilihan kategori dan kata pencarian dipertahankan; Reset
 mengembalikan seluruh produk. Tidak ada hasil menampilkan pesan khusus.
+
+## Tugas 2: keranjang anggota
+
+Keranjang menampilkan foto, kategori, harga satuan, stok, jumlah, subtotal dan total.
+Tombol Hapus bekerja per barang, termasuk barang yang dinonaktifkan atau kehabisan stok.
+Jumlah 0 juga menghapus barang saat diperbarui. Ringkasan berubah saat jumlah diketik;
+server tetap menghitung harga dan total final. Checkout membaca jumlah terbaru langsung
+dari formulir sehingga tidak perlu menekan Perbarui terlebih dahulu.
+
+Perubahan keranjang divalidasi seluruhnya sebelum disimpan. Jika stok berubah atau barang
+nonaktif, keranjang tetap tersedia dengan pesan kesalahan dan tidak ada pesanan parsial.
+Submit ulang token pesanan yang sama tidak membuat pesanan kedua. Stok tidak berkurang
+saat checkout; snapshot harga tetap dibuat di server saat pesanan berhasil dibuat.
+
+Verifikasi 17 November 2026: 44 tes lulus, mencakup 41 tes SQLite/HTTP dan 3 tes integrasi
+konkurensi MariaDB XAMPP pada database uji khusus. MySQL 8 belum diuji. Smoke test browser
+halaman keranjang kosong berhasil; keranjang berisi barang dan tampilan HP belum diverifikasi
+secara visual pada perubahan ini. Satu warning deprecation Starlette/httpx.
+
+## Integrasi cipa terbaru — 17 November 2026
+
+Branch sumber origin/cipa adc656a digabung ke Octavian lokal dengan mempertahankan
+keranjang Tugas 2. Konflik sidebar dan CSS diselesaikan; CSS profil ditempatkan di luar
+media query katalog, dan cache CSS diperbarui. Validasi email profil mengikuti kolom
+190 karakter dan format email; password baru dibatasi 8–128 karakter.
+
+Verifikasi: 43 tes SQLite/HTTP lulus. Percobaan awal 3 tes MariaDB error karena koneksi
+terputus dan layanan XAMPP berhenti. Setelah pengguna menjalankan kembali layanan,
+3 tes MariaDB diulang dan lulus (3.29 detik). Ini bukan pengujian MySQL 8. Halaman login
+berhasil dibuka di browser; smoke test akun anggota/profil setelah login masih perlu
+pengguna masuk sendiri. Tidak ada perubahan profil atau password akun nyata oleh agen.
+
+Pekerjaan lanjutan: Transaksi Saya belum tersedia di cipa; Pesanan masih menggunakan
+nama umum dan belum memiliki pembatalan mandiri anggota. Profil cipa mengubah nama,
+email dan password, belum menyediakan telepon/alamat/nomor anggota. Progres luthfi
+terlihat pada fetch tetapi belum digabung karena permintaan saat ini mengambil cipa.
+Tidak ada push remote pada integrasi ini.
+
+### Pembayaran tunai hasil integrasi luthfi
+
+Admin dapat mencatat uang diterima dan kembalian pada Transaksi. Jalankan `python -m app.cli init-db`
+atau `python -m app.cli migrate-payments` untuk database lama; migrasi hanya menambah kolom.
+Pembayaran tidak mengubah stok atau snapshot. Pembatalan pesanan terkonfirmasi tetap membuat
+transaksi tidak valid untuk analisis dan mengembalikan stok tepat sekali. Catatan uang diterima
+historis tetap ada; belum tersedia pencatatan pengembalian uang.
+
+
+## Penyelesaian fitur anggota (17 November 2026)
+
+| Bagian | Hasil |
+| --- | --- |
+| Tugas 1: akun/katalog/dashboard | Daftar dengan error inline, input non-password dipertahankan, email duplikat spesifik, dashboard jumlah pesanan pribadi, navigasi aktif |
+| Tugas 2: keranjang | Foto, ubah/hapus, total langsung, checkout memakai jumlah terbaru, validasi seluruh barang, token anti-duplikasi; smoke tambah/ubah/hapus berhasil |
+| Tugas 3: pesanan/transaksi | Pesanan Saya dengan filter status dan 20 entri/halaman; pembatalan mandiri hanya Menunggu konfirmasi; Transaksi Saya privat, snapshot, status, nominal tunai/kembalian dan riwayat void |
+| Profil | Nomor anggota/role hanya dilihat, edit nama/email/telepon/alamat, password lama dan konfirmasi untuk perubahan password; input non-password tetap pada error |
+| Kinerja | Kategori produk dan rincian riwayat dimuat bersama untuk menghindari query per kartu/baris; query keranjang mengambil semua produk sekaligus |
+
+Pembatalan anggota dan konfirmasi admin mengunci baris pesanan yang sama, sehingga hanya
+status terbaru yang dipakai. Pembayaran/pembatalan mengunci order kemudian sale dengan
+urutan konsisten. Stok, snapshot dan empat status PRD tetap dipertahankan.
+
+Batas saat ini: pengembalian uang belum dicatat sebagai proses terpisah. Transaksi dibatalkan
+yang sebelumnya dibayar menampilkan instruksi menghubungi koperasi, sambil mempertahankan
+catatan pembayaran historis. Ini tidak mengubah aturan stok/analisis dan tidak menambah gateway.
+
+### Pembayaran otomatis (18 November 2026)
+
+Aturan ini menggantikan alur input uang manual sebelumnya. Di menu Pesanan, admin menekan
+Selesaikan setelah pembayaran/penyerahan selesai. Sistem mencatat Lunas, uang diterima sama
+dengan total, kembalian Rp0, dan waktu pembayaran otomatis. Form pembayaran manual di
+Transaksi dihapus; halaman Transaksi Saya mengikuti hasil yang sama. Nominal pembayaran
+lama yang sudah tercatat tidak ditimpa. Untuk pesanan lama yang Selesai namun belum punya
+pembayaran, jalankan `python -m app.cli sync-completed-payments`. Stok tidak berubah saat Selesaikan.

@@ -34,6 +34,8 @@ def migrate_sale_payments(engine):
         'jumlah_bayar': "BIGINT NOT NULL DEFAULT 0",
         'kembalian': "BIGINT NOT NULL DEFAULT 0",
         'paid_at': "DATETIME NULL",
+        'payment_proof': "MEDIUMBLOB NULL" if engine.dialect.name=='mysql' else "BLOB NULL",
+        'payment_verified_by': "INTEGER NULL",
     }
 
     with engine.begin() as conn:

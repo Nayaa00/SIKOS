@@ -1,31 +1,16 @@
-{% extends 'base.html' %}{% block content %}<div class="card form-card"><span class="eyebrow">DATA ANGGOTA</span>
-    <h1>{{ 'Daftar anggota' if register else ('Edit anggota' if member else 'Tambah anggota') }}</h1>
-    <form method="post" action="{{ '/daftar' if register else '/anggota/simpan' }}"><input type="hidden" name="csrf"
-            value="{{ csrf }}">{% if member %}<input type="hidden" name="id" value="{{ member.id }}">{% endif %}{% if
-        not register %}<div class="field"><label>Nomor anggota</label><input name="nomor"
-                value="{{ member.nomor if member else '' }}" maxlength="40" required></div>{% endif %}<div
-            class="form-grid">{% for key,label,kind in [('nama','Nama
-            lengkap','text'),('email','Email','email'),('telepon','Nomor telepon','text')] %}<div class="field">
-                <label>{{ label }}</label><input type="{{ kind }}" name="{{ key }}"
-                    value="{{ member|attr(key) if member else '' }}" required
-                    maxlength="{{ 30 if key=='telepon' else 150 }}">
-            </div>{% endfor %}
-            <div class="field">
-                <label>Password {{ '(kosongkan jika tetap)' if member else '' }}</label>
-                <input type="password" name="password" minlength="8" maxlength="128" {% if not member %}required{% endif
-                    %}>
-            </div>
-
-            {% if register %}
-            <div class="field">
-                <label>Konfirmasi Password</label>
-                <input type="password" name="konfirmasi_password" minlength="8" maxlength="128" required>
-            </div>
-            {% endif %}
-        </div>
-        <div class="field"><label>Alamat</label><textarea name="alamat" maxlength="2000"
-                required>{{ member.alamat if member else '' }}</textarea></div>{% if not register %}<p><label><input
-                    type="checkbox" name="active" {% if not member or member.active %}checked{% endif %}> Anggota
-                aktif</label></p>{% endif %}<button>Simpan</button>
-    </form>
-</div>{% endblock %}
+{% extends 'base.html' %}{% block content %}
+{% set fields=values if values is defined else (member if member else {}) %}
+<div class="card form-card account-form"><span class="eyebrow">{{ 'BERGABUNG DENGAN KOPERASI' if register else 'DATA ANGGOTA' }}</span>
+<h1>{{ 'Daftar anggota' if register else ('Edit anggota' if member else 'Tambah anggota') }}</h1>
+{% if register %}<p class="muted">Buat akun untuk berbelanja dan memantau pesanan. Nomor anggota dibuat otomatis.</p>{% endif %}
+{% if error %}<div class="notice form-error" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="{{ '/daftar' if register else '/anggota/simpan' }}">
+<input type="hidden" name="csrf" value="{{ csrf }}">{% if member %}<input type="hidden" name="id" value="{{ member.id }}">{% endif %}
+{% if not register %}<div class="field"><label for="nomor">Nomor anggota</label><input id="nomor" name="nomor" value="{{ member.nomor if member else '' }}" maxlength="40" required></div>{% endif %}
+<div class="form-grid">{% for key,label,kind,limit in [('nama','Nama lengkap','text',150),('email','Email','email',190),('telepon','Nomor telepon','tel',30)] %}
+<div class="field"><label for="{{ key }}">{{ label }}</label><input id="{{ key }}" type="{{ kind }}" name="{{ key }}" value="{{ fields[key]|default('') }}" required maxlength="{{ limit }}" autocomplete="{{ 'name' if key=='nama' else ('email' if key=='email' else 'tel') }}"></div>{% endfor %}
+<div class="field"><label for="password">Password {{ '(kosongkan jika tetap)' if member else '' }}</label><input id="password" type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" {% if not member %}required{% endif %}></div>
+{% if register %}<div class="field"><label for="password-confirm">Konfirmasi password</label><input id="password-confirm" name="password_confirm" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></div>{% endif %}</div>
+<div class="field"><label for="alamat">Alamat</label><textarea id="alamat" name="alamat" maxlength="2000" autocomplete="street-address" required>{{ fields['alamat']|default('') }}</textarea></div>
+{% if not register %}<p><label><input type="checkbox" name="active" {% if not member or member.active %}checked{% endif %}> Anggota aktif</label></p>{% endif %}<button>{{ 'Daftar anggota' if register else 'Simpan' }}</button>
+</form>{% if register %}<p class="small-note mt-3">Sudah punya akun? <a href="/login">Masuk ke SIKOS</a></p>{% endif %}</div>{% endblock %}

@@ -105,3 +105,175 @@ filter kategori, pilihan yang dipertahankan, hasil kosong/reset, validasi ID kat
 pencarian wildcard literal, dan pembatasan halaman Produk dari pembeli.
 Tidak ada perubahan skema atau isi database aplikasi pada perubahan ini.
 MySQL 8 nyata belum diuji.
+
+## Integrasi luthfi setelah cipa — 17 November 2026
+
+Branch sumber: origin/luthfi pada 005bcfe. Digabung ke Octavian lokal setelah cipa.
+Konflik main.py, member_form.html dan test_sikos.py diselesaikan dengan mempertahankan
+form pendaftaran/konfirmasi password yang sudah digunakan dan seluruh tes kedua alur.
+Pencatatan pembayaran tunai admin masuk, termasuk validasi nominal, kembalian,
+penolakan pembayaran ganda dan batas akses. init-db kini menjalankan migrasi pembayaran.
+
+Aturan PRD tetap berlaku: pesanan Dikonfirmasi dapat dibatalkan, stok kembali tepat satu
+kali dan transaksi menjadi tidak valid untuk analisis. Riwayat pembayaran yang pernah
+tercatat tetap disimpan; pembatalan bukan bukti bahwa uang sudah dikembalikan. Belum ada
+alur pencatatan refund. Pembayaran dan pembatalan memakai urutan lock order lalu sale.
+
+Migrasi tambah kolom hanya pada database sikos. Pemeriksaan sebelum/sesudah menunjukkan
+stok/harga produk, status/total pesanan, snapshot baris, transaksi dan jumlah audit tetap.
+Pengujian: 56 skenario, 55 langsung lulus; satu tes lama gagal karena teks kosong berubah
+menjadi Keranjang masih kosong. Setelah menyesuaikan assertion, tes itu diulang dan lulus
+(1 passed, 52 deselected). Termasuk 3 tes MariaDB XAMPP nyata yang lulus; MySQL 8 belum diuji.
+Satu warning deprecation Starlette/httpx. Smoke test browser akun anggota: profil dan riwayat
+pesanan terbuka. Pencatatan pembayaran akun nyata tidak dilakukan dalam smoke test.
+
+Yang masih perlu dilengkapi: Transaksi Saya, nama menu Pesanan Saya, pembatalan mandiri
+anggota untuk status Menunggu konfirmasi, telepon/alamat/nomor pada profil, validasi form
+pendaftaran yang mempertahankan input, dan pemeriksaan visual mobile. Integrasi belum dipush.
+
+
+## Penyelesaian fitur anggota — 17 November 2026
+
+Perintah CMD: `venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --tb=short`
+dengan `SIKOS_ALLOW_MARIADB=1` dan URL database uji khusus dari .env (nilainya tidak dicetak).
+Hasil akhir: **64 passed, 1 warning in 48.40s**; 59 SQLite/HTTP dan 5 MariaDB XAMPP.
+Warning merupakan deprecation Starlette/httpx. MySQL 8 belum diuji.
+
+Tambahan cakupan: privasi Transaksi Saya, snapshot setelah produk diedit, riwayat pembayaran
+dan void, pembatalan mandiri pemilik hanya saat menunggu, CSRF/role, pagination/filter,
+pendaftaran dengan input dipertahankan tanpa password, escaping input, profil atomic dan
+perlindungan nomor/role, serta hitungan dashboard yang tidak memasukkan pesanan orang lain.
+Tes MariaDB baru memakai dua koneksi untuk balapan pembatalan anggota versus konfirmasi
+admin dan pembayaran versus pembatalan admin. Baris fixture dibersihkan di database uji.
+
+Smoke browser memakai sesi anggota yang sudah login: menu/dashboard hitungan pribadi,
+Pesanan Saya beserta tombol pembatalan menunggu, Transaksi Saya keadaan kosong, profil
+lengkap dan form daftar dibuka. Katalog -> tambah air mineral 1 unit -> ubah menjadi 2 unit
+(subtotal/total Rp7.000) -> Perbarui -> reload -> Hapus berhasil. Keranjang dipulihkan kosong.
+Tidak membuat/membatalkan pesanan nyata atau mengubah profil/password nyata dalam smoke test.
+Transaksi berisi barang serta checkout/pembatalan penuh diverifikasi melalui HTTP otomatis
+dan tes database; belum ada smoke klik pembayaran nyata menggunakan akun admin.
+
+Tampilan desktop dan breakpoint sempit diperiksa. Override layar 390x844 dipakai tetapi
+browser melaporkan viewport efektif 582px; bukan bukti perangkat HP fisik/390 CSS px.
+Screenshot layout sempit pesanan berhasil, tabel berada dalam kontainer scroll; lebar halaman
+profil tidak melebihi viewport. Override dikembalikan ke ukuran awal. Screenshot lokal ada di
+workspace kerja Codex, bukan menyimpan data pribadi ke repository.
+
+Tidak ada migrasi skema tambahan pada penyelesaian anggota ini. Server berjalan di port 8001.
+Perubahan belum dipush; pengiriman ke branch remote menunggu instruksi pengguna.
+
+## Penyesuaian UI malam 17 November 2026
+
+- Nomor anggota pada Profile berupa kolom disabled; backend tetap mengabaikan perubahan nomor/role dari pengguna.
+- Kolom Role Akun dihapus dari form Profile.
+- Tombol Keluar pada layout admin dan anggota memakai tema merah, termasuk hover dan fokus.
+- Bagian Informasi Akun / Ringkasan Anggota di dashboard anggota dihapus, termasuk query jumlah produk/kategori yang tidak dipakai lagi.
+- Sapaan, ringkasan status pesanan dan produk pilihan tetap tersedia. Identitas anggota dilihat melalui Profile.
+
+Hasil pekerjaan malam ini mencakup integrasi cipa/luthfi, pembayaran tunai, penyelesaian
+Transaksi Saya/pembatalan mandiri, perbaikan form akun/profil, optimasi query dan riwayat,
+serta penyesuaian UI di atas. Perubahan dikumpulkan ke branch nayaa sesuai instruksi pengguna.
+
+## Pembayaran otomatis saat Selesaikan — 18 November 2026
+
+Klik Selesaikan pada pesanan Dikonfirmasi kini sekaligus mencatat pembayaran Lunas,
+uang diterima sebesar total snapshot, kembalian 0 dan paid_at sama dengan completed_at.
+Keduanya disimpan atomik dengan lock pesanan lalu transaksi. Klik berulang tidak mengubah
+waktu/nominal lagi dan tidak mengurangi stok. Catatan pembayaran lama yang sudah Lunas
+(dengan uang/kembalian aktual) tetap dipertahankan.
+
+Form/kolom Aksi pembayaran di Transaksi dihapus. Endpoint manual lama menolak admin dengan
+410 setelah pemeriksaan CSRF; pembeli tetap ditolak 403. Transaksi Saya mengikuti status baru.
+Untuk data lama tersedia `python -m app.cli sync-completed-payments`: hanya transaksi valid,
+Selesai, completed_at tersedia dan pembayaran benar-benar kosong yang diisi; aman diulang.
+Pada database sikos lokal satu transaksi lama disinkronkan. Tidak ada gateway/transfer uang;
+Selesaikan adalah keputusan admin bahwa pembayaran tunai dan penyerahan sudah selesai.
+
+Verifikasi: suite 64 passed (59 SQLite/HTTP + 5 MariaDB) dalam 45.88 detik; setelah itu tes
+MariaDB baru penyelesaian paralel 1 passed, 5 deselected. Total 65 skenario terverifikasi,
+bukan satu eksekusi penuh 65 tes. MySQL 8 belum diuji. Snapshot, pembatalan, pembayaran lama,
+sinkronisasi idempoten dan penutupan endpoint manual tercakup. Satu warning Starlette/httpx.
+
+## Kolom Persediaan — 18 November 2026
+
+Urutan setelah Produk: Stok Awal, Terjual, Stok Sesudah. Stok Awal diambil dari catatan
+stok pertama produk pada seluruh riwayat (tidak hanya 300 baris yang ditampilkan), tetap
+meskipun ada restok/penjualan. Terjual adalah unit pada masing-masing kejadian konfirmasi,
+bukan total penjualan bersih; pembatalan tetap terlihat sebagai audit pengembalian.
+Barang masuk/keluar manual dan pengembalian menampilkan 0 pada Terjual; delta aslinya tetap
+ditampilkan di Alasan. Tidak ada perubahan data stok/audit. Untuk data lama tanpa catatan
+stok awal, saldo sebelum pergerakan pertama digunakan sebagai saldo awal yang dapat ditelusuri.
+Dua tes terarah lulus: halaman admin dan skenario stok awal, penjualan, restok, rusak, pembatalan.
+
+## Validasi Cash sebelum Selesaikan — 18 November 2026
+
+Alur ini menggantikan pencatatan otomatis sebesar total pada aksi Selesaikan. Admin membuka
+/pesanan/{id}/selesaikan dan memilih Cash/Cashless. Cash aktif: isi Uang Pembayaran dalam
+rupiah bulat, Kembalian readonly otomatis = uang pembayaran - total snapshot. Cashless
+terlihat dalam pilihan tetapi belum dapat diproses. Server menolak metode lain, nominal
+kurang, pecahan dan nominal melewati batas. Nilai kembalian dari browser tidak dipercaya.
+Pembayaran dan status Selesai disimpan satu transaksi dengan lock order lalu sale;
+stok tidak dikurangi lagi. Pembayaran lama lunas tidak ditimpa. Endpoint POST status Selesai
+wajib menyertakan metode Cash dan jumlah_bayar. Menutup/kembali dari form tidak mengubah pesanan.
+
+Tes suite: 68 passed, 1 warning dalam 53.35 detik (62 SQLite/HTTP + 6 MariaDB). Setelahnya
+tes Cash paralel MariaDB baru lulus (1 passed, 6 deselected); 69 skenario terverifikasi
+lintas dua eksekusi. MySQL 8 belum diuji. Tidak memproses uang nyata saat pengujian.
+
+## Cashless dengan bukti pembayaran — 18 November 2026
+
+Form penyelesaian kini mendukung Cashless: Ambil Foto (getUserMedia dengan izin kamera)
+atau Unggah Gambar, pratinjau, dan konfirmasi wajib bahwa uang masuk/nominal sudah diperiksa
+admin. Kamera berhenti saat ditutup, selesai mengambil foto, pindah metode, atau meninggalkan
+halaman. Jika kamera tidak tersedia/izin ditolak, unggah gambar tetap dapat digunakan.
+Bukti bukan verifikasi otomatis dari GoPay/bank; tidak ada gateway/API pembayaran eksternal.
+
+Server memvalidasi gambar JPEG/PNG/WebP maksimal 5 MB dan 20 megapiksel, menormalkan ke JPEG
+(tanpa metadata asli). Bukti disimpan sebagai MEDIUMBLOB privat/deferred di sales, disertai ID
+admin pemeriksa. Tidak masuk folder static atau Git. Rute /transaksi/{sale_id}/bukti khusus
+admin, no-store dan nosniff. Pembeli tidak dapat melihat bukti. Pada Transaksi tersedia metode
+pembayaran dan Lihat bukti. Cashless mencatat nominal total, kembalian 0, status Lunas dan
+pesanan Selesai secara atomik; submit ulang tidak menimpa bukti/pembayaran. Stok tetap.
+
+Migrasi tambahan `python -m app.cli migrate-payments` sudah dijalankan pada database sikos,
+hanya menambah payment_proof dan payment_verified_by; data lama tidak direset. Pillow ditambah
+ke requirements. Untuk komputer anggota tim jalankan pip install -r requirements.txt lalu
+migrate-payments sebelum menyalakan server.
+
+Tes penuh: 71 passed, 1 warning dalam 51.03 detik (64 SQLite/HTTP + 7 MariaDB). Setelahnya
+1 tes MariaDB baru bukti Cashless lulus (1 passed, 7 deselected), sehingga 72 skenario
+terverifikasi lintas dua eksekusi. MySQL 8 belum diuji. Tes meliputi konfirmasi wajib,
+file palsu/ukuran, bukti privat, pembayaran idempoten serta penyimpanan blob pada MariaDB.
+Smoke browser: form Cashless beserta tombol foto/unggah, checkbox dan tombol simpan nonaktif
+sebelum bukti/konfirmasi terlihat. Kamera fisik tidak diaktifkan dan tidak ada pembayaran nyata
+disimpan. Jalur izin/perangkat kamera perlu dicoba pengguna; upload end-to-end diuji via HTTP.
+
+### Penyederhanaan form bukti Cashless
+
+Input file bawaan disembunyikan; pilih bukti melalui Unggah Gambar atau Ambil Foto.
+Checkbox konfirmasi dihapus sesuai permintaan pengguna. Submit Simpan & selesaikan oleh
+admin yang terautentikasi dianggap pernyataan pembayaran sudah diterima/nominal sesuai.
+Bukti valid tetap wajib dan pemeriksa tercatat; tidak ada verifikasi otomatis ke bank.
+Tes HTTP unggah Cashless tanpa checkbox lulus, termasuk privasi/idempotensi. Ini menggantikan
+ketentuan checkbox pada catatan sebelumnya.
+
+### Penyelesaian UI dan pengumpulan progres ke dzikri
+
+Teks petunjuk kecil Cashless yang ditandai pengguna dihapus; pesan validasi kesalahan
+masih tampil. Input bawaan Choose File disembunyikan, checkbox tidak digunakan, dan tombol
+Simpan & selesaikan menjadi konfirmasi admin. Bukti gambar tetap wajib dan aksesnya khusus admin.
+Progres yang dikumpulkan juga mencakup tabel Persediaan, CardView khusus impor, form Cash
+beserta kembalian, Cashless dengan foto/unggah bukti, migrasi, dependency dan pengujian.
+
+Verifikasi final sebelum push dzikri: 72 passed, 1 warning dalam 63.44 detik,
+terdiri dari 64 tes SQLite/HTTP dan 8 tes MariaDB XAMPP. MySQL 8 belum diuji.
+
+## Desain Tailwind lintas halaman — 18 November 2026
+
+Branch codex/tailwind-ui memakai Tailwind build lokal untuk layout dan sistem komponen
+seluruh halaman. Bootstrap sudah dilepas dari base. CSS historis ada di layer legacy untuk
+layout widget, desain baru di layer components/utilities. Backend, stok, pembayaran dan
+schema database tidak diubah oleh migrasi tampilan ini. Build berhasil; 72 tes lulus,
+termasuk 8 MariaDB XAMPP (56.58 detik). Lihat docs/TAILWIND.md untuk setup, batas verifikasi
+visual dan peringatan dependency build. Tidak ada push pada tahap ini.

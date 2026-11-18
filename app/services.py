@@ -89,17 +89,11 @@ def transition(db, order_id, target, actor):
     if target not in valid.get(order.status, set()):
         raise RuleError('Perubahan status tersebut tidak diperbolehkan.')
 
-    # Cegah pembatalan jika pembayaran sudah lunas
+    # Lock order before sale, shared with cash payment, to serialize cancellation.
     sale = None
     if target == 'Dibatalkan':
-        sale = db.scalar(
-            select(Sale).where(Sale.order_id == order.id)
-        )
-
-        if sale and sale.status_pembayaran == 'Lunas':
-            raise RuleError(
-                'Pesanan sudah dibayar. Pengembalian dana harus diproses sebelum pembatalan.'
-            )
+        sale = db.scalar(select(Sale).where(Sale.order_id == order.id)
+                         .with_for_update().execution_options(populate_existing=True))
 
     # Proses perubahan stok
     if target == 'Dikonfirmasi' or (
@@ -144,6 +138,7 @@ def transition(db, order_id, target, actor):
 
     elif target == 'Selesai':
         order.completed_at = utcnow()
+        settle_completed_order(db,order)
 
     order.status = target
     db.flush()
@@ -169,6 +164,14 @@ def period(kind, selected):
 
 
 def record_payment(db, sale_id, amount):
+    amount = integer(amount, 'Jumlah uang diterima')
+    order_id = db.scalar(select(Sale.order_id).where(Sale.id == sale_id))
+    if order_id is None:
+        raise RuleError('Transaksi tidak ditemukan.')
+    order = db.scalar(select(Order).where(Order.id == order_id)
+                      .with_for_update().execution_options(populate_existing=True))
+    if order is None or order.status not in ('Dikonfirmasi', 'Selesai'):
+        raise RuleError('Pesanan tidak dapat dibayar.')
     sale = db.scalar(
         select(Sale)
         .where(Sale.id == sale_id)
@@ -196,3 +199,75 @@ def record_payment(db, sale_id, amount):
 
     db.flush()
     return sale
+
+
+def cancel_member_order(db, order_id, member_id):
+    # Ownership and status are checked under the same lock used by admin confirmation.
+    order=db.scalar(select(Order).where(Order.id==order_id,Order.member_id==member_id)
+                    .with_for_update().execution_options(populate_existing=True))
+    if order is None:
+        from fastapi import HTTPException
+        raise HTTPException(404,'Pesanan tidak ditemukan.')
+    if order.status=='Dibatalkan':return order
+    if order.status!='Menunggu konfirmasi':
+        raise RuleError('Pesanan sudah diproses admin. Hanya pesanan Menunggu konfirmasi yang dapat Anda batalkan.')
+    return transition(db,order_id,'Dibatalkan',member_id)
+
+
+def settle_completed_order(db,order):
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id)
+                   .with_for_update().execution_options(populate_existing=True))
+    if sale is None or not sale.valid:
+        raise RuleError('Transaksi valid untuk pesanan ini tidak ditemukan.')
+    if sale.status_pembayaran=='Lunas':return sale
+    if sale.jumlah_bayar or sale.kembalian or sale.paid_at:
+        raise RuleError('Catatan pembayaran lama perlu diperiksa sebelum menyelesaikan pesanan.')
+    sale.metode_pembayaran='Tunai'
+    sale.status_pembayaran='Lunas'
+    sale.jumlah_bayar=sale.total
+    sale.kembalian=0
+    sale.paid_at=order.completed_at
+    return sale
+
+def sync_completed_payments(db):
+    ids=db.scalars(select(Order.id).join(Sale,Sale.order_id==Order.id).where(
+        Order.status=='Selesai',Order.completed_at.is_not(None),Sale.valid.is_(True),
+        Sale.status_pembayaran=='Belum dibayar',Sale.jumlah_bayar==0,
+        Sale.kembalian==0,Sale.paid_at.is_(None)).order_by(Order.id)).all()
+    count=0
+    for oid in ids:
+        order=db.scalar(select(Order).where(Order.id==oid).with_for_update().execution_options(populate_existing=True))
+        if order.status=='Selesai':settle_completed_order(db,order);count+=1
+    db.flush()
+    return count
+
+
+def complete_cash_order(db,order_id,actor,method,amount):
+    if method!='Cash':raise RuleError('Cashless belum tersedia. Pilih Cash untuk pembayaran tunai.')
+    amount=integer(amount,'Uang Pembayaran')
+    order=db.scalar(select(Order).where(Order.id==order_id).with_for_update().execution_options(populate_existing=True))
+    if order is None:raise RuleError('Pesanan tidak ditemukan.')
+    if order.status=='Selesai':return order
+    if order.status!='Dikonfirmasi':raise RuleError('Hanya pesanan Dikonfirmasi yang dapat diselesaikan.')
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id).with_for_update().execution_options(populate_existing=True))
+    if sale is None or not sale.valid:raise RuleError('Transaksi valid tidak ditemukan.')
+    if sale.status_pembayaran=='Lunas':
+        if amount!=sale.jumlah_bayar:raise RuleError('Nominal berbeda dari pembayaran yang sudah tercatat.')
+    else:record_payment(db,sale.id,amount)
+    return transition(db,order.id,'Selesai',actor)
+
+
+def complete_cashless_order(db,order_id,actor,proof,verified):
+    if not verified:raise RuleError('Konfirmasi bahwa pembayaran sudah diterima dan nominal sesuai.')
+    order=db.scalar(select(Order).where(Order.id==order_id).with_for_update().execution_options(populate_existing=True))
+    if order is None:raise RuleError('Pesanan tidak ditemukan.')
+    if order.status=='Selesai':return order
+    if order.status!='Dikonfirmasi':raise RuleError('Hanya pesanan Dikonfirmasi yang dapat diselesaikan.')
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id).with_for_update().execution_options(populate_existing=True))
+    if sale is None or not sale.valid:raise RuleError('Transaksi valid tidak ditemukan.')
+    if sale.status_pembayaran=='Lunas':raise RuleError('Pembayaran sudah tercatat. Bukti dan metode lama tidak boleh ditimpa.')
+    if not proof:raise RuleError('Unggah bukti pembayaran terlebih dahulu.')
+    sale.metode_pembayaran='Cashless';sale.status_pembayaran='Lunas'
+    sale.jumlah_bayar=sale.total;sale.kembalian=0;sale.paid_at=utcnow()
+    sale.payment_proof=proof;sale.payment_verified_by=actor
+    return transition(db,order.id,'Selesai',actor)

@@ -1,0 +1,112 @@
+/* Transition: no Preflight; tw: prefix isolates legacy Bootstrap classes.
+   Important utilities override existing unlayered legacy CSS only where opted in. */
+@layer legacy, theme, base, components, utilities;
+@import "../app/static/app.css" layer(legacy);
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw) important source(none);
+@source "../app/templates";
+@source "../app/static/*.js";
+
+/* Shared UI components are compiled by Tailwind. Legacy geometry remains in a
+   lower-priority layer for specialised widgets during source cleanup. */
+@layer components {
+  main { @apply tw:text-slate-700; }
+  main h1 { @apply tw:mb-3 tw:text-3xl tw:font-bold tw:tracking-tight tw:text-slate-900 tw:sm:text-4xl; }
+  main h2 { @apply tw:mb-4 tw:text-lg tw:font-semibold tw:tracking-tight tw:text-slate-900; }
+  main h3 { @apply tw:text-base tw:font-semibold tw:text-slate-800; }
+  main p { @apply tw:leading-relaxed; }
+  main a:not(.btn) { @apply tw:text-emerald-800; }
+  .eyebrow { @apply tw:mb-2 tw:inline-block tw:text-[10px] tw:font-bold tw:tracking-[0.2em] tw:text-emerald-700; }
+  .muted,.small-note { @apply tw:text-slate-500; }
+  .small-note { @apply tw:text-xs tw:leading-relaxed; }
+  .card,.profile-card,.import-upload-card { @apply tw:mb-6 tw:min-w-0 tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:p-6 tw:shadow-xs tw:sm:p-7; }
+  .card { @apply tw:overflow-x-auto; }
+  .stats { @apply tw:my-7 tw:grid tw:grid-cols-2 tw:gap-4 tw:xl:grid-cols-4; }
+  .stats .card { @apply tw:m-0 tw:p-6; }
+  .stat-label { @apply tw:mb-4 tw:text-xs tw:font-medium tw:text-slate-500; }
+  .stat-value { @apply tw:text-3xl tw:font-bold tw:tracking-tight tw:text-emerald-950; }
+  .split { @apply tw:grid tw:grid-cols-1 tw:gap-6 tw:xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]; }
+  .hero,.catalog-hero { @apply tw:mb-7 tw:rounded-3xl tw:border tw:border-solid tw:border-emerald-100 tw:bg-emerald-50 tw:p-7 tw:sm:p-9; }
+  main button,main .btn,main .catalog-reset-btn { @apply tw:inline-flex tw:min-h-10 tw:items-center tw:justify-center tw:gap-2 tw:rounded-xl tw:border-0 tw:bg-emerald-800 tw:px-4 tw:py-2.5 tw:text-sm tw:font-semibold tw:text-white tw:no-underline tw:transition tw:hover:bg-emerald-900 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-emerald-700; }
+  main .btn-light,main .profile-reset,main .catalog-reset-btn { @apply tw:bg-emerald-50 tw:text-emerald-900 tw:hover:bg-emerald-100; }
+  main .btn-danger,main .inventory-delete { @apply tw:bg-red-50 tw:text-red-700 tw:hover:bg-red-100; }
+  main .btn-sm { @apply tw:min-h-8 tw:px-3 tw:py-2 tw:text-xs; }
+  main button:disabled { @apply tw:cursor-not-allowed tw:bg-stone-200 tw:text-slate-400 tw:opacity-70; }
+  main input:not([type=checkbox]):not([type=hidden]),main select,main textarea { @apply tw:min-h-11 tw:rounded-xl tw:border tw:border-solid tw:border-stone-300 tw:bg-white tw:px-3.5 tw:py-2.5 tw:text-sm tw:text-slate-800 tw:transition tw:focus:border-emerald-600 tw:focus:outline-none tw:focus:ring-3 tw:focus:ring-emerald-100; }
+  main input[readonly],main input:disabled { @apply tw:bg-stone-100 tw:text-slate-500; }
+  main input[type=checkbox] { @apply tw:size-4 tw:accent-emerald-700 tw:align-middle; }
+  .field { @apply tw:mb-5; }
+  .field label,.profile-field label { @apply tw:mb-2 tw:block tw:text-xs tw:font-semibold tw:text-slate-600; }
+  .form-grid { @apply tw:grid tw:grid-cols-1 tw:gap-x-6 tw:sm:grid-cols-2; }
+  .form-card { @apply tw:mx-auto tw:max-w-3xl; }
+  .form-card h1 { @apply tw:mb-6 tw:text-2xl tw:sm:text-3xl; }
+  .toolbar,.period { @apply tw:my-5 tw:flex tw:flex-wrap tw:items-center tw:gap-3; }
+  .period { @apply tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:p-4; }
+  table { @apply tw:w-full tw:border-collapse tw:whitespace-nowrap tw:text-sm; }
+  th { @apply tw:border-0 tw:border-b tw:border-solid tw:border-stone-200 tw:bg-stone-50 tw:px-4 tw:py-3.5 tw:text-left tw:text-[10px] tw:font-bold tw:uppercase tw:tracking-wider tw:text-slate-500; }
+  td { @apply tw:border-0 tw:border-b tw:border-solid tw:border-stone-100 tw:px-4 tw:py-4 tw:text-slate-700; }
+  tbody tr:hover { @apply tw:bg-emerald-50/40; }
+  .pill,.inventory-status { @apply tw:inline-flex tw:items-center tw:rounded-full tw:bg-emerald-50 tw:px-3 tw:py-1 tw:text-[11px] tw:font-semibold tw:text-emerald-800; }
+  .pill[data-status="Menunggu konfirmasi"] { @apply tw:bg-amber-50 tw:text-amber-800; }
+  .pill[data-status="Dikonfirmasi"] { @apply tw:bg-sky-50 tw:text-sky-800; }
+  .pill[data-status="Dibatalkan"],.status-archived { @apply tw:bg-red-50 tw:text-red-700; }
+  .empty { @apply tw:p-10 tw:text-center tw:text-sm tw:text-slate-500; }
+  .notice { @apply tw:mb-5 tw:rounded-xl tw:border tw:border-solid tw:border-emerald-200 tw:bg-emerald-50 tw:p-4 tw:text-sm tw:text-emerald-900; }
+  .form-error,.cart-warning,.profile-error { @apply tw:border-red-100 tw:bg-red-50 tw:text-red-700; }
+  .inventory-heading,.catalog-result-heading { @apply tw:mb-6 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-4; }
+  .inventory-filter,.catalog-filter { @apply tw:mb-6 tw:grid tw:grid-cols-1 tw:gap-3 tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:p-5 tw:md:grid-cols-[minmax(0,1fr)_minmax(160px,240px)_auto_auto]; }
+  .inventory-filter .field { @apply tw:m-0; }
+  .inventory-filter { @apply tw:items-end; }
+  .inventory-grid,.catalog-grid { @apply tw:grid tw:grid-cols-1 tw:gap-5 tw:sm:grid-cols-2 tw:xl:grid-cols-3; }
+  .inventory-card,.catalog-card { @apply tw:overflow-hidden tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:shadow-xs tw:transition tw:hover:-translate-y-1 tw:hover:shadow-lg; }
+  .inventory-photo,.catalog-product-image { @apply tw:relative tw:flex tw:h-52 tw:items-center tw:justify-center tw:bg-stone-100 tw:p-5; }
+  .inventory-photo img,.catalog-product-image img { @apply tw:h-full tw:w-full tw:object-contain; }
+  .inventory-category,.catalog-category-badge { @apply tw:absolute tw:left-3 tw:top-3 tw:rounded-full tw:border-0 tw:bg-white tw:px-3 tw:py-1 tw:text-[10px] tw:font-semibold tw:text-emerald-900 tw:shadow-xs; }
+  .inventory-body,.catalog-product-body { @apply tw:p-5; }
+  .inventory-body h2,.catalog-product-body h3 { @apply tw:mb-2 tw:text-base tw:font-semibold; }
+  .inventory-code,.catalog-product-code { @apply tw:mb-2 tw:text-[10px] tw:tracking-wider tw:text-slate-400; }
+  .inventory-label,.catalog-product-label,.catalog-product-description { @apply tw:text-xs tw:text-slate-500; }
+  .inventory-price,.catalog-product-price { @apply tw:my-4 tw:text-2xl tw:font-bold tw:text-emerald-800; }
+  .inventory-price small { @apply tw:text-xs tw:font-normal tw:text-slate-400; }
+  .inventory-detail,.catalog-stock-info { @apply tw:my-3 tw:flex tw:items-center tw:justify-between tw:gap-3 tw:text-xs; }
+  .inventory-actions { @apply tw:mt-5 tw:grid tw:grid-cols-2 tw:gap-3 tw:border-0 tw:border-t tw:border-solid tw:border-stone-100 tw:pt-4; }
+  .inventory-actions form,.inventory-actions button,.inventory-actions .btn { @apply tw:w-full; }
+  .catalog-add-form { @apply tw:mt-4 tw:border-0 tw:border-t tw:border-solid tw:border-stone-100 tw:pt-4; }
+  .catalog-stock-empty,.stock-empty { @apply tw:text-red-600; }
+  .auth { @apply tw:mx-auto tw:my-8 tw:max-w-md; }
+  .auth-heading { @apply tw:mb-7 tw:text-center; }
+  .auth h1 { @apply tw:text-3xl; }
+  .auth button { @apply tw:w-full; }
+  .profile-page { @apply tw:mx-auto tw:max-w-3xl tw:p-0; }
+  .profile-page .profile-card { @apply tw:p-6 tw:sm:p-8; }
+  .profile-page .profile-field input { @apply tw:rounded-xl tw:border-stone-300 tw:text-sm; }
+  .profile-page .profile-user { @apply tw:mb-6 tw:border-stone-100 tw:pb-6; }
+  .profile-page .profile-avatar { @apply tw:rounded-2xl tw:bg-emerald-50 tw:text-emerald-800; }
+  .profile-page .profile-section-heading h3 { @apply tw:text-base; }
+  .profile-page .profile-actions { @apply tw:mt-7 tw:flex tw:flex-wrap tw:justify-end tw:gap-3; }
+  .profile-page .profile-actions button { @apply tw:rounded-xl tw:text-sm; }
+  .import-upload-card { @apply tw:mx-auto tw:mt-3 tw:max-w-4xl tw:p-0; }
+  .import-card-top { @apply tw:border-stone-100 tw:p-6 tw:sm:p-8; }
+  .import-file-area { @apply tw:m-6 tw:rounded-2xl tw:border-emerald-200 tw:bg-emerald-50/40 tw:py-10 tw:sm:m-8; }
+  .import-file-icon,.import-upload-symbol { @apply tw:bg-emerald-100 tw:text-emerald-800; }
+  .cart-layout { @apply tw:grid tw:grid-cols-1 tw:gap-6 tw:xl:grid-cols-[minmax(0,1fr)_300px]; }
+  .cart-item { @apply tw:flex tw:flex-row tw:flex-wrap tw:items-center tw:gap-4 tw:p-5; }
+  .cart-details { @apply tw:min-w-0 tw:flex-1; }
+  .cart-details h2 { @apply tw:my-2 tw:text-base; }
+  .cart-photo { @apply tw:h-28 tw:w-24 tw:rounded-xl tw:bg-stone-100 tw:object-contain tw:p-2; }
+  .cart-summary { @apply tw:static tw:p-6 tw:xl:sticky tw:xl:top-6; }
+  .cart-total { @apply tw:border-stone-200 tw:text-xl; }
+  .checkout-total { @apply tw:my-5 tw:rounded-xl tw:bg-emerald-50 tw:p-5 tw:text-left tw:text-2xl tw:font-bold tw:text-emerald-900; }
+  .order-card { @apply tw:p-5 tw:sm:p-7; }
+  .order-card h2 { @apply tw:mb-0 tw:text-base; }
+  .order-actions { @apply tw:mt-5; }
+  .table-scroll { @apply tw:overflow-x-auto; }
+  .mt-3 { @apply tw:mt-4; } .mt-4 { @apply tw:mt-6; } .text-end { @apply tw:text-right; }
+}
+
+@layer base {
+  [hidden]:not([hidden="until-found"]) { display:none !important; }
+  @media (prefers-reduced-motion:reduce) {
+    *,*::before,*::after { transition-duration:0.01ms !important; animation-duration:0.01ms !important; }
+  }
+}

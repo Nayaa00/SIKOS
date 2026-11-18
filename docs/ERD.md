@@ -67,6 +67,13 @@ erDiagram
         int id PK
         int order_id FK,UK
         datetime created_at
+        string metode_pembayaran
+        string status_pembayaran
+        bigint jumlah_bayar
+        bigint kembalian
+        datetime paid_at
+        blob payment_proof
+        int payment_verified_by FK
         boolean valid
         bigint total
     }

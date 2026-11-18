@@ -1,0 +1,4 @@
+{% if window.pages>1 %}<nav class="history-pagination" aria-label="Halaman riwayat">
+{% if window.number>1 %}<a class="btn btn-light" href="{{ request.url.include_query_params(halaman=window.number-1) }}">← Sebelumnya</a>{% endif %}
+<span>Halaman {{ window.number }} dari {{ window.pages }}</span>
+{% if window.number<window.pages %}<a class="btn btn-light" href="{{ request.url.include_query_params(halaman=window.number+1) }}">Berikutnya →</a>{% endif %}</nav>{% endif %}
