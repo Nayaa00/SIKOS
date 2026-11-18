@@ -1181,7 +1181,7 @@ def test_hpp_admin_edit_validation_privacy_and_export(web,store):
     summary=list(workbook['Ringkasan'].values);data=dict(zip(summary[0],summary[1]))
     assert data['total_hpp']==60000 and data['laba_kotor']==9000 and data['status_hpp']=='Lengkap'
     assert 'hpp' in next(workbook['Rincian'].values)
-    assert 'Laba kotor' in web.get('/laporan').text
+    assert 'Laba bersih tercatat' in web.get('/laporan').text
 
 
 def test_hpp_migration_preserves_unknown_history(tmp_path):
@@ -1264,3 +1264,109 @@ def test_pricing_migration_keeps_prices_and_custom_percentage(tmp_path):
         assert conn.scalar(sql_text('SELECT markup_percent FROM categories WHERE id=1'))==12
         assert conn.scalar(sql_text('SELECT harga FROM products'))==75000
     engine.dispose()
+
+
+def test_operating_cost_periods_void_and_incomplete_hpp(store):
+    from app.expenses import create_expense,void_expense
+    from app.models import OperatingExpense
+    db,a,m,_,p,_,_=store
+    p.hpp=40000;db.commit()
+    order=create_order(db,m.id,{str(p.id):1},uuid4().hex);transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id));sale.created_at=datetime(2026,11,16,0);db.commit()
+    expense=create_expense(db,a.id,uuid4().hex,'2026-11-16','Listrik dan air','Listrik toko',10000)
+    create_expense(db,a.id,uuid4().hex,'2026-11-15','Transportasi','Ongkos',2000)
+    create_expense(db,a.id,uuid4().hex,'2026-12-01','Sewa','Sewa',5000);db.commit()
+    for kind,expected in [('harian',20000),('mingguan',20000),('bulanan',18000),('tahunan',13000)]:
+        assert analyze(db,kind,'2026-11-16')['net_profit']==expected
+    void_expense(db,expense.id,a.id);db.commit();old=expense.voided_at
+    void_expense(db,expense.id,a.id);db.commit();assert expense.voided_at==old
+    assert analyze(db,'harian','2026-11-16')['net_profit']==30000
+    order.lines[0].hpp=None;db.commit()
+    result=analyze(db,'bulanan','2026-11-16');assert result['net_profit'] is None and result['expense_total']==2000
+    # A period without sales can legitimately have a negative recorded net profit.
+    assert analyze(db,'harian','2026-12-01')['net_profit']==-5000
+
+
+def test_expense_http_admin_csrf_idempotent_and_export(web,store):
+    from app.models import OperatingExpense
+    signin(web)
+    assert web.get('/biaya-operasional').status_code==403
+    assert web.post('/biaya-operasional',data={}).status_code==403
+    csrf=signin(web,True);page=web.get('/biaya-operasional')
+    form_token=re.search(r'name="token" value="([a-f0-9]+)"',page.text).group(1)
+    payload={'csrf':csrf,'token':form_token,'tanggal':'2026-11-18','category':'Transportasi','description':'Ongkos pemasok','amount':'12000'}
+    assert web.post('/biaya-operasional',data={**payload,'csrf':'wrong'}).status_code==403
+    for amount in ('-1','0','1.5'):
+        assert web.post('/biaya-operasional',data={**payload,'amount':amount}).status_code==400
+    assert web.post('/biaya-operasional',data=payload).status_code==200
+    assert web.post('/biaya-operasional',data=payload).status_code==200
+    db=store[0];assert db.scalar(select(func.count()).select_from(OperatingExpense))==1
+    expense=db.scalar(select(OperatingExpense));assert expense.amount==12000
+    response=web.get('/laporan?periode=harian&tanggal=2026-11-18&export=xlsx')
+    from openpyxl import load_workbook
+    book=load_workbook(BytesIO(response.content),data_only=True)
+    summary=list(book['Ringkasan'].values);row=dict(zip(summary[0],summary[1]))
+    assert row['biaya_operasional']==12000 and row['laba_bersih']==-12000
+    assert 'Biaya operasional' in book.sheetnames
+    assert web.post(f'/biaya-operasional/{expense.id}/batalkan',data={'csrf':csrf}).status_code==200
+    db.expire_all();assert not db.get(OperatingExpense,expense.id).valid
+    signin(web);assert web.post(f'/biaya-operasional/{expense.id}/batalkan',data={'csrf':csrf}).status_code==403
+
+
+def test_estimated_hpp_initialization_preserves_actual_prices_stock_and_history(store):
+    from app.expenses import initialize_product_costs
+    db,a,m,_,p,second,_=store
+    p.hpp=40000;db.commit()
+    prior=create_order(db,m.id,{str(second.id):1},uuid4().hex);transition(db,prior.id,'Dikonfirmasi',a.id);db.commit()
+    before=(p.harga,p.stok,second.harga,second.stok,prior.total)
+    assert initialize_product_costs(db)==1;db.commit()
+    assert p.hpp==40000 and not p.hpp_estimated
+    assert second.hpp>0 and second.hpp_estimated
+    assert (p.harga,p.stok,second.harga,second.stok,prior.total)==before
+    assert prior.lines[0].hpp is None and not prior.lines[0].hpp_estimated
+    assert initialize_product_costs(db)==0
+    transition(db,prior.id,'Dibatalkan',a.id);db.commit()
+    new=create_order(db,m.id,{str(second.id):1},uuid4().hex);transition(db,new.id,'Dikonfirmasi',a.id);db.commit()
+    assert new.lines[0].hpp==second.hpp and new.lines[0].hpp_estimated
+    result=analyze(db,'tahunan',new.confirmed_at.date().isoformat())
+    assert result['estimated_cost_units']==1
+
+
+def test_history_hpp_estimate_only_missing_and_preserves_known(store):
+    from app.expenses import initialize_history_costs
+    db,a,m,_,p,second,_=store
+    p.hpp=40000;db.commit()
+    known=create_order(db,m.id,{str(p.id):1},uuid4().hex);transition(db,known.id,'Dikonfirmasi',a.id)
+    missing=create_order(db,m.id,{str(second.id):1},uuid4().hex);transition(db,missing.id,'Dikonfirmasi',a.id);db.commit()
+    assert missing.lines[0].hpp is None
+    second.hpp=100000;db.commit()
+    before=(known.total,missing.total,p.stok,second.stok,missing.lines[0].harga,missing.lines[0].qty)
+    assert initialize_history_costs(db)==1;db.commit()
+    assert known.lines[0].hpp==40000 and not known.lines[0].hpp_estimated
+    assert missing.lines[0].hpp==121739 and missing.lines[0].hpp_estimated
+    assert (known.total,missing.total,p.stok,second.stok,missing.lines[0].harga,missing.lines[0].qty)==before
+    assert initialize_history_costs(db)==0
+    result=analyze(db,'tahunan',missing.confirmed_at.date().isoformat())
+    assert result['cost_complete'] and result['total_hpp']==161739 and result['estimated_cost_units']==1
+
+
+def test_monthly_plan_conservative_break_even_math():
+    from app.expenses import plan_calculation
+    result=plan_calculation(1500000,20000000,10)
+    assert result['bep']==16500000 and result['projected_net']==318181 and result['covered']
+    assert str(result['required_markup'])=='8.11'
+    result=plan_calculation(1500000,10000000,10);assert not result['covered'] and result['projected_net']<0
+    result=plan_calculation(1500000,1000000,0);assert result['bep'] is None and result['required_markup'] is None and not result['covered']
+
+
+def test_monthly_plan_admin_only_not_actual_expense(web,store):
+    from app.models import MonthlyPlan,OperatingExpense
+    signin(web);assert web.post('/biaya-operasional/rencana',data={}).status_code==403
+    csrf=signin(web,True)
+    page=web.get('/biaya-operasional');assert 'SIMULASI BULANAN' in page.text
+    assert store[0].get(MonthlyPlan,1) is None
+    assert web.post('/biaya-operasional/rencana',data={'csrf':csrf,'budget':1000000,'target_revenue':15000000}).status_code==200
+    assert store[0].get(MonthlyPlan,1).budget==1000000
+    assert store[0].scalar(select(func.count()).select_from(OperatingExpense))==0
+    report=web.get('/laporan').text
+    assert 'Omzet minimal impas' in report and '<span class="stat-label">Laba kotor</span>' not in report

@@ -364,3 +364,50 @@ init-db juga mencakup migrasi tersebut. Data historis tidak diberi HPP fiktif da
 tidak menulis ulang harga produk lama. Folder kerja utama dan branch main tetap.
 
 Verifikasi worktree cipa: 93 tes lulus dalam 61.96 detik (83 SQLite/HTTP dan 10 MariaDB XAMPP), 1 warning deprecation. MySQL 8 belum diuji. Syntax product-pricing.js dan git diff --check lulus.
+
+
+## Biaya operasional dan estimasi HPP awal — 18 November 2026
+
+97 tes lulus dalam 80.93 detik: 86 SQLite/HTTP dan 11 MariaDB XAMPP, 1 warning deprecation.
+MySQL 8 belum diuji. Tes meliputi total/laba bersih pada empat periode WIB, biaya dibatalkan
+idempoten, periode tanpa penjualan menghasilkan rugi, HPP historis belum lengkap, hak akses
+anggota, CSRF, token anti-duplikasi, ekspor biaya/net profit, persistensi/void MariaDB,
+serta inisialisasi HPP hanya pada NULL dengan harga/stok/HPP lama/snapshot tetap.
+
+Pengisian data operasional yang diotorisasi: 31 produk, 29 HPP kosong diisi estimasi dan
+2 HPP yang sudah terisi dipertahankan. Nol HPP NULL tersisa. Backup JSON di luar Git proyek
+tersedia sebelum commit transaksi. Harga jual, stok dan snapshot diperiksa sama sebelum
+dan sesudah. Tidak membuat biaya operasional atau transaksi palsu di database operasional.
+
+Smoke test browser admin: navigasi Biaya Operasional, form tanggal/kategori/nominal/
+keterangan, empty state riwayat, serta ringkasan biaya dan laba bersih pada laporan tampil.
+Tidak menyimpan form biaya atau mengubah transaksi saat smoke test. Migrasi satu tabel
+biaya dan dua penanda estimasi dijalankan di database SIKOS lokal. Build Tailwind lulus.
+Belum di-push ke GitHub.
+
+## Total HPP historis dan simulasi bulanan — 18 November 2026
+
+101 tes lulus dalam 70.03 detik (89 SQLite/HTTP + 12 MariaDB XAMPP), 1 warning deprecation.
+MySQL 8 belum diuji. Tes tambahan: snapshot NULL saja diisi estimasi/idempoten termasuk
+persistensi MariaDB, HPP yang sudah ada/harga/jumlah/stok tetap, total HPP menjadi lengkap,
+rumus BEP/margin/markup minimal dan skenario rugi/markup nol, rencana khusus admin dan
+tidak menambah ledger biaya nyata, serta hilangnya kartu laba kotor.
+
+Data operasional yang diotorisasi: 10 baris snapshot HPP historis kosong diisi estimasi;
+backup JSON tersimpan di luar Git. Tidak mengubah harga, jumlah, subtotal, total atau status.
+Smoke test browser admin: laporan menampilkan total HPP numerik dan laba bersih beserta
+penanda estimasi, empat kartu tanpa kartu laba kotor, serta contoh biaya Rp1.500.000,
+target Rp20.000.000, BEP Rp16.500.000 dan proyeksi Rp318.181. Tidak menyimpan rencana atau
+membuat biaya/transaksi dummy saat smoke test. Harga produk tidak diubah oleh simulasi.
+Build Tailwind berhasil. Belum di-push ke GitHub.
+
+## Pembaruan biaya operasional ke cipa — 18 November 2026
+
+Integrasi melanjutkan commit 340e07c pada cipa. Memuat menu biaya operasional, laba bersih
+tercatat, sumber HPP estimasi, perintah pengisian HPP produk/historis kosong secara eksplisit,
+serta simulasi rencana bulanan/BEP. Migrasi untuk instalasi lama: migrate-expenses, restart.
+Rencana simulasi tidak menjadi expense dan tidak mengubah harga jual otomatis. Backup dan
+isi database lokal tidak disertakan dalam Git; perintah pengisian data tidak dijalankan
+secara otomatis setelah pull. Snapshot HPP yang sudah ada dipertahankan.
+
+Verifikasi worktree cipa: 101 tes lulus dalam 82.53 detik (89 SQLite/HTTP + 12 MariaDB XAMPP), 1 warning deprecation. MySQL 8 belum diuji. git diff --check lulus.

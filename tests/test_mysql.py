@@ -11,7 +11,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
-from app.models import Category, Order, OrderLine, Product, Sale, StockMovement, User, Notification, PaymentSubmission
+from app.models import Category, Order, OrderLine, Product, Sale, StockMovement, User, Notification, PaymentSubmission, OperatingExpense, MonthlyPlan
 from app.services import RuleError, create_order, movement, transition
 from app.security import hash_password
 
@@ -41,10 +41,11 @@ def mysql_store():
     migrate_product_labels(engine)
     from app.code_migration import migrate_product_codes
     migrate_product_codes(engine)
-    from app.migrations import migrate_sale_payments,migrate_hpp,migrate_pricing
+    from app.migrations import migrate_sale_payments,migrate_hpp,migrate_pricing,migrate_expenses
     migrate_sale_payments(engine)
     migrate_hpp(engine)
     migrate_pricing(engine)
+    migrate_expenses(engine)
     with engine.connect() as connection:
         engines = connection.execute(text(
             'SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES '
@@ -69,6 +70,8 @@ def mysql_store():
         yield factory, ids
     finally:
         with factory() as db:
+            db.execute(delete(MonthlyPlan).where(MonthlyPlan.updated_by.in_(ids[:2])))
+            db.execute(delete(OperatingExpense).where(OperatingExpense.created_by.in_(ids[:2])))
             orders = select(Order.id).where(Order.member_id == ids[1])
             db.execute(delete(Notification).where(Notification.user_id.in_(ids[:2])))
             db.execute(delete(PaymentSubmission).where(PaymentSubmission.member_id.in_(ids[:2])))
@@ -328,3 +331,28 @@ def test_mysql_hpp_snapshot_concurrent_confirmation(mysql_store):
         db.get(Product,ids[2]).hpp=9000;db.commit()
         transition(db,oid,'Dikonfirmasi',ids[0]);db.commit()
         assert db.scalar(select(OrderLine.hpp).where(OrderLine.order_id==oid))==6000
+
+
+def test_mysql_operating_expense_persisted_and_void_idempotent(mysql_store):
+    from app.expenses import create_expense,void_expense
+    factory,ids=mysql_store;token=uuid4().hex
+    with factory() as db:
+        expense=create_expense(db,ids[0],token,'2026-11-18','Transportasi','Tes ongkos',12000);db.commit();eid=expense.id
+    with factory() as db:
+        assert create_expense(db,ids[0],token,'2026-11-18','Transportasi','Tes ongkos',12000).id==eid
+        void_expense(db,eid,ids[0]);db.commit()
+        value=db.get(OperatingExpense,eid);assert value.amount==12000 and not value.valid and value.voided_by==ids[0]
+        previous=value.voided_at;void_expense(db,eid,ids[0]);db.commit();assert value.voided_at==previous
+
+
+def test_mysql_historical_hpp_initialization_once(mysql_store):
+    from app.expenses import initialize_history_costs
+    factory,ids=mysql_store
+    with factory() as db:
+        order=create_order(db,ids[1],{str(ids[2]):1},uuid4().hex);transition(db,order.id,'Dikonfirmasi',ids[0]);db.commit();oid=order.id
+    with factory() as db:
+        assert initialize_history_costs(db)==1;db.commit()
+    with factory() as db:
+        assert initialize_history_costs(db)==0
+        line=db.scalar(select(OrderLine).where(OrderLine.order_id==oid))
+        assert line.hpp==8695 and line.hpp_estimated and line.harga==10000

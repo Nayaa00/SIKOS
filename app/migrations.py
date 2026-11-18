@@ -75,3 +75,14 @@ def migrate_pricing(engine):
             for name,value in DEFAULT_MARKUPS.items():
                 conn.execute(text('UPDATE categories SET markup_percent=:value WHERE nama=:name'),{'name':name,'value':value})
     # Price, HPP and historical order snapshots are deliberately not rewritten.
+
+
+def migrate_expenses(engine):
+    from .models import OperatingExpense,MonthlyPlan
+    OperatingExpense.__table__.create(engine,checkfirst=True)
+    MonthlyPlan.__table__.create(engine,checkfirst=True)
+    for table in ('products','order_lines'):
+        columns={column['name'] for column in inspect(engine).get_columns(table)}
+        if 'hpp_estimated' not in columns:
+            with engine.begin() as conn:
+                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN hpp_estimated BOOLEAN NOT NULL DEFAULT 0'))

@@ -204,3 +204,19 @@ Harga jual otomatis = HPP ditambah markup kategori lalu dibulatkan ke atas kelip
 Admin dapat mengedit markup; perubahan menghitung ulang produk ber-HPP, tetap mempertahankan
 snapshot pesanan. Default rekomendasi awal 10/20/25/15/10 untuk lima kategori utama; bukan
 standar resmi pasar. Migrasi migrate-pricing tidak menebak HPP atau menimpa harga lama.
+
+## Biaya operasional dan laba bersih
+
+Tahap lanjutan mencakup ledger biaya operasional khusus admin, token anti-duplikasi,
+pembatalan tanpa penghapusan audit, total biaya per periode dan laba bersih tercatat pada
+dashboard/laporan/Excel. HPP awal produk kosong dapat diisi estimasi dengan penanda sumber,
+tidak menimpa harga/stok/snapshot lama. Laba berbasis HPP estimasi diberi keterangan dan
+riwayat tanpa HPP tetap belum lengkap. Tidak mengarang biaya operasional nyata.
+
+## Perapian laporan dan proyeksi biaya
+
+Kartu laba kotor dihilangkan; total HPP/laba bersih laporan memakai snapshot historis yang
+NULL diisi estimasi berlabel atas permintaan pengguna. Snapshot yang sudah ada tetap.
+Simulasi rencana bulanan biaya/target omzet/BEP tersedia dan dapat diedit admin, terpisah
+dari ledger biaya aktual. Contoh awal biaya Rp1,5 juta dan target omzet Rp20 juta bukan
+angka faktual koperasi. Tidak menjanjikan laba dan tidak menerapkan harga baru otomatis.

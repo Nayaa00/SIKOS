@@ -5,14 +5,14 @@ from .db import Base,engine,SessionLocal
 from .models import User,Category,Product
 from .security import hash_password
 from .services import movement, sync_completed_payments
-from .migrations import migrate_product_labels, migrate_sale_payments, migrate_notifications, migrate_hpp, migrate_pricing
+from .migrations import migrate_product_labels, migrate_sale_payments, migrate_notifications, migrate_hpp, migrate_pricing, migrate_expenses
 from .code_migration import migrate_product_codes
 from .product_codes import next_product_code
 from sqlalchemy import or_
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('command',choices=['init-db','migrate-pricing','migrate-hpp','migrate-notifications','migrate-labels','migrate-codes','migrate-payments','sync-completed-payments','create-admin','seed-demo'])
+    parser.add_argument('command',choices=['init-db','migrate-expenses','init-product-hpp','init-history-hpp','migrate-pricing','migrate-hpp','migrate-notifications','migrate-labels','migrate-codes','migrate-payments','sync-completed-payments','create-admin','seed-demo'])
     args=parser.parse_args()
     if args.command=='init-db':
         Base.metadata.create_all(engine)
@@ -21,7 +21,24 @@ def main():
         migrate_sale_payments(engine)
         migrate_hpp(engine)
         migrate_pricing(engine)
+        migrate_expenses(engine)
         print('Tabel SIKOS siap.')
+        return
+    if args.command=='migrate-expenses':
+        migrate_expenses(engine)
+        print('Biaya operasional dan penanda HPP estimasi siap.')
+        return
+    if args.command=='init-history-hpp':
+        from .expenses import initialize_history_costs
+        with SessionLocal() as db:
+            count=initialize_history_costs(db);db.commit()
+        print(f'{count} baris snapshot HPP kosong diisi estimasi historis, harga/jumlah/status tetap.')
+        return
+    if args.command=='init-product-hpp':
+        from .expenses import initialize_product_costs
+        with SessionLocal() as db:
+            count=initialize_product_costs(db);db.commit()
+        print(f'{count} HPP produk kosong diisi estimasi. Harga jual, stok, dan snapshot lama tetap.')
         return
     if args.command=='migrate-pricing':
         migrate_pricing(engine)

@@ -115,6 +115,7 @@ def transition(db, order_id, target, actor):
 
             if target == 'Dikonfirmasi':
                 line.hpp=product.hpp
+                line.hpp_estimated=product.hpp_estimated
                 if not product.active or not product.category.active:
                     raise RuleError(f'{product.nama} sudah dinonaktifkan.')
 

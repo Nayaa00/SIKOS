@@ -360,3 +360,73 @@ Excel produk memerlukan kode,nama,kategori,stok,satuan, serta hpp positif pada s
 Kolom harga tidak diperlukan; jika masih ada, nilainya diabaikan. Template baru menyediakan
 hpp dan tidak meminta harga manual. Baris tanpa HPP dilaporkan gagal, bukan memakai modal
 fiktif. Produk berkode sama tetap ditolak tanpa menimpa stok/harga yang berjalan.
+
+## Biaya operasional dan laba bersih tercatat
+
+Admin membuka Biaya Operasional untuk mencatat tanggal biaya (WIB), kategori, nominal dan
+keterangan. Kategori: listrik/air, transportasi, sewa, gaji, perlengkapan dan lainnya.
+Form memakai CSRF serta token unik agar pengiriman ulang tidak mencatat biaya dua kali.
+Pembatalan biaya adalah soft void: nominal/keterangan/pembuat tetap tersimpan, dengan
+admin pembatal dan waktu pembatalan. Untuk koreksi, batalkan catatan lalu tambah yang benar.
+Anggota tidak dapat membaca, menambah atau membatalkan biaya.
+
+Dashboard/laporan menampilkan biaya operasional periode dan laba bersih tercatat:
+laba kotor dari transaksi valid − biaya operasional valid pada tanggal biaya.
+Tanggal biaya menggunakan kalender WIB dan batas periode yang sama dengan laporan.
+Periode tanpa penjualan tetapi memiliki biaya dapat menghasilkan laba bersih negatif.
+Laporan tetap berdasarkan konfirmasi penjualan, bukan arus kas pembayaran; hasil laba
+bersih tercatat hanya mencakup pengeluaran yang benar-benar dimasukkan admin.
+Ekspor Excel menambah sheet Biaya operasional serta ringkasan biaya/laba bersih.
+
+Instalasi lama menjalankan migrate-expenses sebelum restart. Migrasi membuat tabel
+operating_expenses dan penanda boolean hpp_estimated pada products/order_lines.
+init-db mencakup migrasi ini. Tidak membuat biaya dummy di database operasional.
+
+Perintah opsional init-product-hpp mengisi HPP produk yang masih NULL dengan estimasi
+floor(harga jual / (1 + markup/100)), minimum Rp1. Ini hanya nilai awal perencanaan,
+bukan harga beli hasil nota/pemasok. Harga jual, stok, HPP yang sudah ada dan snapshot lama
+tidak ditimpa; perintah idempoten. Produk diberi label HPP estimasi awal. Admin mengganti
+HPP sesuai nota dan memilih Sumber HPP: Harga beli aktual / nota untuk memverifikasinya.
+Saat konfirmasi baru, nilai serta penanda estimasi disalin ke OrderLine. Laporan yang
+menggunakan HPP estimasi menampilkan pemberitahuan, beserta jumlah unit terkait; Excel
+memuat kolom hpp_estimasi dan unit_hpp_estimasi. Snapshot historis NULL tetap belum lengkap.
+
+Pengisian yang diminta pengguna pada 18 November 2026 sudah dilakukan untuk database
+SIKOS lokal: 31 produk memiliki HPP, 29 nilai NULL diisi estimasi, 2 nilai yang sudah ada
+tetap. Backup JSON sebelum pengisian disimpan di folder kerja lokal di luar Git proyek.
+Pemeriksaan sebelum/sesudah memastikan harga jual, stok dan seluruh snapshot lama tetap.
+
+## Laporan HPP historis dan simulasi titik impas
+
+Pembaruan atas aturan snapshot lama di atas: sesuai permintaan pengguna agar total HPP
+laporan dapat dihitung, init-history-hpp mengisi hanya snapshot HPP NULL pada pesanan
+Dikonfirmasi/Selesai yang transaksinya valid. Nilainya merupakan ESTIMASI dari harga jual
+snapshot dibagi (1+markup kategori saat pengisian), dibulatkan ke bawah ke rupiah. Tidak
+mengambil harga beli produk sekarang sebagai fakta historis. Snapshot yang sudah ada,
+harga jual, jumlah, subtotal, status dan total pesanan tidak diubah; pengisian idempoten.
+Lock Order→OrderLine memakai current read agar tidak menimpa HPP yang baru dikonfirmasi.
+Penanda estimasi tetap disimpan dan ditampilkan pada laporan/Excel.
+
+Pada database SIKOS lokal, 10 baris historis kosong telah diisi estimasi setelah backup JSON
+ke folder kerja di luar Git. Pemeriksaan memastikan seluruh field selain HPP NULL/penanda
+estimasi tetap. Total HPP dan laba bersih kini tersedia untuk transaksi tersebut, dengan
+peringatan estimasi. Kartu laba kotor dihapus; ringkasan utama: omzet, total HPP, biaya
+operasional dan laba bersih tercatat. Rumus internal/kolom rincian laba kotor tetap tersedia.
+
+Simulasi bulanan tersedia di Laporan dan Biaya Operasional. Admin dapat menyimpan rencana
+biaya dan target omzet secara terpisah dari ledger biaya nyata. Karena belum ada angka
+koperasi sendiri, contoh awal menggunakan biaya Rp1.500.000/bulan dan target omzet
+Rp20.000.000/bulan. Biaya contoh merujuk simulasi GoPay:
+https://gopay.co.id/blog/buka-usaha-sembako (bukan standar baku biaya bulanan).
+Simulasi menggunakan markup aktif terendah untuk pendekatan konservatif, menganggap harga
+jual mengikuti formula kategori dan tidak ada biaya variabel tambahan di luar HPP.
+Margin terhadap omzet = markup/(100+markup); omzet impas = biaya bulanan/margin tersebut.
+Dengan markup terendah 10%, omzet impas Rp16.500.000; proyeksi laba pada target Rp20 juta
+adalah Rp318.181 (pembulatan konservatif). Markup minimal yang dibutuhkan untuk skenario
+tersebut 8,11% dari HPP. Target yang belum menutup biaya diberi peringatan.
+
+Ini simulasi, bukan jaminan penjualan/laba. Rencana tidak memotong laba laporan aktual,
+tidak membuat expense, dan tidak mengubah harga otomatis. Laba tercatat tetap menggunakan
+biaya valid yang dimasukkan admin. Model MonthlyPlan menyimpan rencana global khusus admin;
+migrate-expenses kini juga membuat tabel monthly_plan. Default contoh tidak disimpan hingga
+admin memilih Simpan rencana. Hanya admin dapat membaca/menyimpan rencana.

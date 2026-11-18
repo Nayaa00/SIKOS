@@ -16,7 +16,7 @@ from sqlalchemy import select, func, or_, update
 from sqlalchemy.orm import Session, selectinload, joinedload, object_session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
-from .models import User, Category, Product, Order, Sale, StockMovement, Notification, PaymentSubmission, utcnow
+from .models import User, Category, Product, Order, Sale, StockMovement, Notification, PaymentSubmission, OperatingExpense, MonthlyPlan, utcnow
 from .security import hash_password, verify_password, csrf_token, check_csrf
 from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment, cancel_member_order, complete_cash_order, complete_cashless_order
 from .product_images import product_image, default_product_image, valid_product_image
@@ -385,7 +385,11 @@ async def product_save(request:Request,user:User=Depends(admin),db:Session=Depen
     if chosen_label not in product_labels(db):raise RuleError('Pilih label yang tersedia pada dropdown.')
     product.label=chosen_label
     product.category_id=category.id
+    previous_hpp=product.hpp
     product.hpp=integer(form.get('hpp',product.hpp),'Harga beli / HPP')
+    source=str(form.get('hpp_source',''))
+    if source not in ('','actual','estimated'):raise RuleError('Sumber HPP tidak valid.')
+    product.hpp_estimated=source=='estimated' if source else bool(product.hpp_estimated and product.hpp==previous_hpp)
     product.harga=selling_price(product.hpp,category.markup_percent)
     product.satuan=text(form.get('satuan'),'Satuan',30)
     product.deskripsi=str(form.get('deskripsi','')).strip()[:5000]
@@ -761,23 +765,56 @@ async def sale_payment(
 
     raise HTTPException(410,'Pembayaran dicatat otomatis saat pesanan diselesaikan melalui menu Pesanan.')
 
+@app.get('/biaya-operasional')
+def expenses_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
+    from .expenses import CATEGORIES as expense_categories,monthly_plan
+    statement=select(OperatingExpense).order_by(OperatingExpense.tanggal.desc(),OperatingExpense.id.desc())
+    statement,window=history_window(request,db,statement)
+    return page(request,'expenses.html',user=user,expenses=db.scalars(statement).all(),window=window,expense_categories=expense_categories,expense_token=uuid4().hex,today=datetime.now(ZoneInfo('Asia/Jakarta')).date().isoformat(),monthly_plan=monthly_plan(db))
+
+@app.post('/biaya-operasional/rencana')
+async def monthly_plan_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
+    form=await request.form();check_csrf(request,form)
+    budget=integer(form.get('budget'),'Rencana biaya bulanan',True)
+    target=integer(form.get('target_revenue'),'Target omzet bulanan')
+    plan=db.scalar(select(MonthlyPlan).where(MonthlyPlan.id==1).with_for_update())
+    if plan is None:plan=MonthlyPlan(id=1);db.add(plan)
+    plan.budget=budget;plan.target_revenue=target;plan.updated_by=user.id;plan.updated_at=utcnow()
+    db.commit();return go('/biaya-operasional',request,'Rencana bulanan disimpan. Ini simulasi, bukan pengeluaran yang dibukukan.')
+
+@app.post('/biaya-operasional')
+async def expense_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
+    from .expenses import create_expense
+    form=await request.form();check_csrf(request,form)
+    create_expense(db,user.id,str(form.get('token','')),form.get('tanggal'),str(form.get('category','')),form.get('description'),form.get('amount'))
+    db.commit();return go('/biaya-operasional',request,'Biaya operasional dicatat.')
+
+@app.post('/biaya-operasional/{expense_id}/batalkan')
+async def expense_cancel(expense_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
+    from .expenses import void_expense
+    form=await request.form();check_csrf(request,form)
+    void_expense(db,expense_id,user.id);db.commit()
+    return go('/biaya-operasional',request,'Catatan biaya dibatalkan dan dikeluarkan dari laporan.')
+
 @app.get('/laporan')
 def report_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     kind=request.query_params.get('periode','harian');day=request.query_params.get('tanggal',datetime.now(ZoneInfo('Asia/Jakarta')).date().isoformat())
     analysis=analyze(db,kind,day)
     if request.query_params.get('export')=='xlsx':
         buffer=BytesIO()
-        frame=pd.DataFrame(analysis['rows'],columns=['pesanan','anggota','tanggal','kode','produk','jumlah','harga','subtotal','hpp','total_hpp','laba_kotor'])
+        frame=pd.DataFrame(analysis['rows'],columns=['pesanan','anggota','tanggal','kode','produk','jumlah','harga','subtotal','hpp','hpp_estimasi','total_hpp','laba_kotor'])
         with pd.ExcelWriter(buffer,engine='openpyxl') as writer:
             frame.to_excel(writer,index=False,sheet_name='Rincian')
-            pd.DataFrame([{'periode':kind,'tanggal_acuan':day,'transaksi':analysis['transactions'],'unit':analysis['units'],'penjualan':analysis['total'],'total_hpp':analysis['total_hpp'],'laba_kotor':analysis['gross_profit'],'unit_hpp_belum_tersedia':analysis['missing_cost_units'],'hpp_tercatat':analysis['known_cost'],'laba_kotor_tercatat':analysis['known_profit'],'status_hpp':'Lengkap' if analysis['cost_complete'] else 'HPP belum lengkap'}]).to_excel(writer,index=False,sheet_name='Ringkasan')
+            pd.DataFrame([{'periode':kind,'tanggal_acuan':day,'transaksi':analysis['transactions'],'unit':analysis['units'],'penjualan':analysis['total'],'total_hpp':analysis['total_hpp'],'laba_kotor':analysis['gross_profit'],'biaya_operasional':analysis['expense_total'],'laba_bersih':analysis['net_profit'],'unit_hpp_estimasi':analysis['estimated_cost_units'],'unit_hpp_belum_tersedia':analysis['missing_cost_units'],'hpp_tercatat':analysis['known_cost'],'laba_kotor_tercatat':analysis['known_profit'],'status_hpp':'Lengkap' if analysis['cost_complete'] else 'HPP belum lengkap'}]).to_excel(writer,index=False,sheet_name='Ringkasan')
+            pd.DataFrame(analysis['expense_rows'],columns=['tanggal','kategori','keterangan','nominal']).to_excel(writer,index=False,sheet_name='Biaya operasional')
             for sheet in writer.book:
                 for row in sheet:
                     for cell in row:
                         if isinstance(cell.value,str):cell.data_type='s'
                 sheet.freeze_panes='A2'
         return Response(buffer.getvalue(),media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="laporan_{kind}_{day}.xlsx"'})
-    return page(request,'reports.html',user=user,analysis=analysis)
+    from .expenses import monthly_plan
+    return page(request,'reports.html',user=user,analysis=analysis,monthly_plan=monthly_plan(db))
 
 @app.get('/impor')
 def import_page(request:Request,user:User=Depends(admin)):

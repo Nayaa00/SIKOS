@@ -153,3 +153,18 @@ OrderLine.harga tetap snapshot saat pesan dan OrderLine.hpp snapshot saat konfir
 Migrasi migrate-pricing hanya menambah/set default kolom baru, tidak mereset nilai admin
 atau mengubah harga, stok dan snapshot lama. Penyimpanan kategori/produk memakai urutan
 lock Category lalu Product untuk repricing yang konsisten.
+
+## Biaya operasional dan sumber HPP
+
+OperatingExpense: id, token unik, tanggal DATE (WIB), category, description, amount BIGINT
+positif, valid, created_by FK User, created_at, voided_by FK User nullable, voided_at.
+Riwayat biaya dibatalkan secara soft void. Filter biaya memakai tanggal kalender pada
+batas periode laporan. products.hpp_estimated dan order_lines.hpp_estimated adalah boolean;
+penanda disalin bersama HPP saat konfirmasi. Migrasi additive: migrate-expenses.
+
+## Rencana bulanan
+
+MONTHLY_PLAN: id (singleton 1), budget BIGINT, target_revenue BIGINT, updated_by FK USERS,
+updated_at DATETIME. Rencana hanya untuk simulasi dan terpisah dari OperatingExpense.
+Migrasi: migrate-expenses. Laporan memakai margin markup terendah kategori aktif untuk
+mengestimasi omzet impas; tidak mengubah transaksi atau harga jual.

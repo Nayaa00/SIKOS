@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from decimal import Decimal
-from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint, LargeBinary, Index, Numeric
+from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Date, Text, CheckConstraint, UniqueConstraint, LargeBinary, Index, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 from sqlalchemy.dialects.mysql import MEDIUMBLOB
@@ -41,6 +41,7 @@ class Product(Base):
     category: Mapped[Category] = relationship()
     harga: Mapped[int] = mapped_column(BigInteger)
     hpp: Mapped[int | None] = mapped_column(BigInteger,nullable=True)
+    hpp_estimated: Mapped[bool] = mapped_column(Boolean,default=False,server_default='0')
     stok: Mapped[int] = mapped_column(Integer, default=0)
     satuan: Mapped[str] = mapped_column(String(30))
     deskripsi: Mapped[str] = mapped_column(Text, default='')
@@ -76,6 +77,7 @@ class OrderLine(Base):
     nama: Mapped[str] = mapped_column(String(150))
     harga: Mapped[int] = mapped_column(BigInteger)
     hpp: Mapped[int | None] = mapped_column(BigInteger,nullable=True)
+    hpp_estimated: Mapped[bool] = mapped_column(Boolean,default=False,server_default='0')
     qty: Mapped[int] = mapped_column(Integer)
     subtotal: Mapped[int] = mapped_column(BigInteger)
 
@@ -134,6 +136,29 @@ class PaymentSubmission(Base):
     member_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     proof: Mapped[bytes] = mapped_column(LargeBinary().with_variant(MEDIUMBLOB(),'mysql'),deferred=True)
     created_at: Mapped[datetime] = mapped_column(DateTime,default=utcnow)
+
+class OperatingExpense(Base):
+    __tablename__ = 'operating_expenses'
+    __table_args__ = (CheckConstraint('amount > 0'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token: Mapped[str] = mapped_column(String(32),unique=True)
+    tanggal: Mapped[date] = mapped_column(Date,index=True)
+    category: Mapped[str] = mapped_column(String(50))
+    description: Mapped[str] = mapped_column(String(200))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    valid: Mapped[bool] = mapped_column(Boolean,default=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime,default=utcnow)
+    voided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'),nullable=True)
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime,nullable=True)
+
+class MonthlyPlan(Base):
+    __tablename__ = 'monthly_plan'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    budget: Mapped[int] = mapped_column(BigInteger)
+    target_revenue: Mapped[int] = mapped_column(BigInteger)
+    updated_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime] = mapped_column(DateTime,default=utcnow)
 
 # Explicit transactional engine for every newly created MySQL table.
 for _table in Base.metadata.tables.values():
