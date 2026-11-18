@@ -240,3 +240,34 @@ def sync_completed_payments(db):
         if order.status=='Selesai':settle_completed_order(db,order);count+=1
     db.flush()
     return count
+
+
+def complete_cash_order(db,order_id,actor,method,amount):
+    if method!='Cash':raise RuleError('Cashless belum tersedia. Pilih Cash untuk pembayaran tunai.')
+    amount=integer(amount,'Uang Pembayaran')
+    order=db.scalar(select(Order).where(Order.id==order_id).with_for_update().execution_options(populate_existing=True))
+    if order is None:raise RuleError('Pesanan tidak ditemukan.')
+    if order.status=='Selesai':return order
+    if order.status!='Dikonfirmasi':raise RuleError('Hanya pesanan Dikonfirmasi yang dapat diselesaikan.')
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id).with_for_update().execution_options(populate_existing=True))
+    if sale is None or not sale.valid:raise RuleError('Transaksi valid tidak ditemukan.')
+    if sale.status_pembayaran=='Lunas':
+        if amount!=sale.jumlah_bayar:raise RuleError('Nominal berbeda dari pembayaran yang sudah tercatat.')
+    else:record_payment(db,sale.id,amount)
+    return transition(db,order.id,'Selesai',actor)
+
+
+def complete_cashless_order(db,order_id,actor,proof,verified):
+    if not verified:raise RuleError('Konfirmasi bahwa pembayaran sudah diterima dan nominal sesuai.')
+    order=db.scalar(select(Order).where(Order.id==order_id).with_for_update().execution_options(populate_existing=True))
+    if order is None:raise RuleError('Pesanan tidak ditemukan.')
+    if order.status=='Selesai':return order
+    if order.status!='Dikonfirmasi':raise RuleError('Hanya pesanan Dikonfirmasi yang dapat diselesaikan.')
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id).with_for_update().execution_options(populate_existing=True))
+    if sale is None or not sale.valid:raise RuleError('Transaksi valid tidak ditemukan.')
+    if sale.status_pembayaran=='Lunas':raise RuleError('Pembayaran sudah tercatat. Bukti dan metode lama tidak boleh ditimpa.')
+    if not proof:raise RuleError('Unggah bukti pembayaran terlebih dahulu.')
+    sale.metode_pembayaran='Cashless';sale.status_pembayaran='Lunas'
+    sale.jumlah_bayar=sale.total;sale.kembalian=0;sale.paid_at=utcnow()
+    sale.payment_proof=proof;sale.payment_verified_by=actor
+    return transition(db,order.id,'Selesai',actor)

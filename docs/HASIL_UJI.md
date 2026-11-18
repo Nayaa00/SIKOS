@@ -194,3 +194,77 @@ Verifikasi: suite 64 passed (59 SQLite/HTTP + 5 MariaDB) dalam 45.88 detik; sete
 MariaDB baru penyelesaian paralel 1 passed, 5 deselected. Total 65 skenario terverifikasi,
 bukan satu eksekusi penuh 65 tes. MySQL 8 belum diuji. Snapshot, pembatalan, pembayaran lama,
 sinkronisasi idempoten dan penutupan endpoint manual tercakup. Satu warning Starlette/httpx.
+
+## Kolom Persediaan — 18 November 2026
+
+Urutan setelah Produk: Stok Awal, Terjual, Stok Sesudah. Stok Awal diambil dari catatan
+stok pertama produk pada seluruh riwayat (tidak hanya 300 baris yang ditampilkan), tetap
+meskipun ada restok/penjualan. Terjual adalah unit pada masing-masing kejadian konfirmasi,
+bukan total penjualan bersih; pembatalan tetap terlihat sebagai audit pengembalian.
+Barang masuk/keluar manual dan pengembalian menampilkan 0 pada Terjual; delta aslinya tetap
+ditampilkan di Alasan. Tidak ada perubahan data stok/audit. Untuk data lama tanpa catatan
+stok awal, saldo sebelum pergerakan pertama digunakan sebagai saldo awal yang dapat ditelusuri.
+Dua tes terarah lulus: halaman admin dan skenario stok awal, penjualan, restok, rusak, pembatalan.
+
+## Validasi Cash sebelum Selesaikan — 18 November 2026
+
+Alur ini menggantikan pencatatan otomatis sebesar total pada aksi Selesaikan. Admin membuka
+/pesanan/{id}/selesaikan dan memilih Cash/Cashless. Cash aktif: isi Uang Pembayaran dalam
+rupiah bulat, Kembalian readonly otomatis = uang pembayaran - total snapshot. Cashless
+terlihat dalam pilihan tetapi belum dapat diproses. Server menolak metode lain, nominal
+kurang, pecahan dan nominal melewati batas. Nilai kembalian dari browser tidak dipercaya.
+Pembayaran dan status Selesai disimpan satu transaksi dengan lock order lalu sale;
+stok tidak dikurangi lagi. Pembayaran lama lunas tidak ditimpa. Endpoint POST status Selesai
+wajib menyertakan metode Cash dan jumlah_bayar. Menutup/kembali dari form tidak mengubah pesanan.
+
+Tes suite: 68 passed, 1 warning dalam 53.35 detik (62 SQLite/HTTP + 6 MariaDB). Setelahnya
+tes Cash paralel MariaDB baru lulus (1 passed, 6 deselected); 69 skenario terverifikasi
+lintas dua eksekusi. MySQL 8 belum diuji. Tidak memproses uang nyata saat pengujian.
+
+## Cashless dengan bukti pembayaran — 18 November 2026
+
+Form penyelesaian kini mendukung Cashless: Ambil Foto (getUserMedia dengan izin kamera)
+atau Unggah Gambar, pratinjau, dan konfirmasi wajib bahwa uang masuk/nominal sudah diperiksa
+admin. Kamera berhenti saat ditutup, selesai mengambil foto, pindah metode, atau meninggalkan
+halaman. Jika kamera tidak tersedia/izin ditolak, unggah gambar tetap dapat digunakan.
+Bukti bukan verifikasi otomatis dari GoPay/bank; tidak ada gateway/API pembayaran eksternal.
+
+Server memvalidasi gambar JPEG/PNG/WebP maksimal 5 MB dan 20 megapiksel, menormalkan ke JPEG
+(tanpa metadata asli). Bukti disimpan sebagai MEDIUMBLOB privat/deferred di sales, disertai ID
+admin pemeriksa. Tidak masuk folder static atau Git. Rute /transaksi/{sale_id}/bukti khusus
+admin, no-store dan nosniff. Pembeli tidak dapat melihat bukti. Pada Transaksi tersedia metode
+pembayaran dan Lihat bukti. Cashless mencatat nominal total, kembalian 0, status Lunas dan
+pesanan Selesai secara atomik; submit ulang tidak menimpa bukti/pembayaran. Stok tetap.
+
+Migrasi tambahan `python -m app.cli migrate-payments` sudah dijalankan pada database sikos,
+hanya menambah payment_proof dan payment_verified_by; data lama tidak direset. Pillow ditambah
+ke requirements. Untuk komputer anggota tim jalankan pip install -r requirements.txt lalu
+migrate-payments sebelum menyalakan server.
+
+Tes penuh: 71 passed, 1 warning dalam 51.03 detik (64 SQLite/HTTP + 7 MariaDB). Setelahnya
+1 tes MariaDB baru bukti Cashless lulus (1 passed, 7 deselected), sehingga 72 skenario
+terverifikasi lintas dua eksekusi. MySQL 8 belum diuji. Tes meliputi konfirmasi wajib,
+file palsu/ukuran, bukti privat, pembayaran idempoten serta penyimpanan blob pada MariaDB.
+Smoke browser: form Cashless beserta tombol foto/unggah, checkbox dan tombol simpan nonaktif
+sebelum bukti/konfirmasi terlihat. Kamera fisik tidak diaktifkan dan tidak ada pembayaran nyata
+disimpan. Jalur izin/perangkat kamera perlu dicoba pengguna; upload end-to-end diuji via HTTP.
+
+### Penyederhanaan form bukti Cashless
+
+Input file bawaan disembunyikan; pilih bukti melalui Unggah Gambar atau Ambil Foto.
+Checkbox konfirmasi dihapus sesuai permintaan pengguna. Submit Simpan & selesaikan oleh
+admin yang terautentikasi dianggap pernyataan pembayaran sudah diterima/nominal sesuai.
+Bukti valid tetap wajib dan pemeriksa tercatat; tidak ada verifikasi otomatis ke bank.
+Tes HTTP unggah Cashless tanpa checkbox lulus, termasuk privasi/idempotensi. Ini menggantikan
+ketentuan checkbox pada catatan sebelumnya.
+
+### Penyelesaian UI dan pengumpulan progres ke dzikri
+
+Teks petunjuk kecil Cashless yang ditandai pengguna dihapus; pesan validasi kesalahan
+masih tampil. Input bawaan Choose File disembunyikan, checkbox tidak digunakan, dan tombol
+Simpan & selesaikan menjadi konfirmasi admin. Bukti gambar tetap wajib dan aksesnya khusus admin.
+Progres yang dikumpulkan juga mencakup tabel Persediaan, CardView khusus impor, form Cash
+beserta kembalian, Cashless dengan foto/unggah bukti, migrasi, dependency dan pengujian.
+
+Verifikasi final sebelum push dzikri: 72 passed, 1 warning dalam 63.44 detik,
+terdiri dari 64 tes SQLite/HTTP dan 8 tes MariaDB XAMPP. MySQL 8 belum diuji.

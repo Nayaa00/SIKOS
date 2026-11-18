@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
 from .models import User, Category, Product, Order, Sale, StockMovement
 from .security import hash_password, verify_password, csrf_token, check_csrf
-from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment, cancel_member_order
+from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment, cancel_member_order, complete_cash_order, complete_cashless_order
 from .product_images import product_image, default_product_image, valid_product_image
 from .product_codes import next_product_code, choose_prefix
 from .analytics import analyze
@@ -385,7 +385,12 @@ async def product_delete(product_id:int,request:Request,user:User=Depends(admin)
 
 @app.get('/stok')
 def stock_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
-    return page(request,'stock.html',user=user,products=db.scalars(select(Product).order_by(Product.nama)).all(),movements=db.scalars(select(StockMovement).order_by(StockMovement.id.desc()).limit(300)).all())
+    movements=db.scalars(select(StockMovement).options(joinedload(StockMovement.product),joinedload(StockMovement.actor)).order_by(StockMovement.id.desc()).limit(300)).all()
+    ids={m.product_id for m in movements}
+    first_ids=select(func.min(StockMovement.id)).where(StockMovement.product_id.in_(ids)).group_by(StockMovement.product_id)
+    first_movements=db.scalars(select(StockMovement).where(StockMovement.id.in_(first_ids))).all() if ids else []
+    initial_stocks={m.product_id:(m.after if m.delta>=0 and not m.order_id else m.after-m.delta) for m in first_movements}
+    return page(request,'stock.html',user=user,products=db.scalars(select(Product).order_by(Product.nama)).all(),movements=movements,initial_stocks=initial_stocks)
 
 @app.post('/stok')
 async def stock_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -607,16 +612,49 @@ def member_sales(request:Request,user:User=Depends(buyer),db:Session=Depends(get
     rows=db.execute(statement.options(selectinload(Order.lines))).all()
     return page(request,'member_sales.html',user=user,rows=rows,window=window)
 
+@app.get('/pesanan/{order_id}/selesaikan')
+def completion_page(order_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
+    order=db.get(Order,order_id)
+    if order is None:raise HTTPException(404,'Pesanan tidak ditemukan.')
+    if order.status!='Dikonfirmasi':return go('/pesanan',request,'Pesanan ini tidak menunggu penyelesaian.')
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+    return page(request,'complete_order.html',user=user,order=order,amount=sale.jumlah_bayar if sale and sale.status_pembayaran=='Lunas' else '',method='Cash')
+
 @app.post('/pesanan/{order_id}/status')
 async def order_status(order_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
-    transition(db,order_id,str(form.get('status','')),user.id);db.commit()
+    target=str(form.get('status',''))
+    if target=='Selesai':
+        try:
+            if form.get('metode')=='Cashless':
+                from .payment_proofs import validate_payment_proof, MAX_PROOF_SIZE
+                upload=form.get('payment_proof')
+                if not upload or not hasattr(upload,'read'):raise RuleError('Unggah bukti pembayaran terlebih dahulu.')
+                proof=validate_payment_proof(await upload.read(MAX_PROOF_SIZE+1))
+                complete_cashless_order(db,order_id,user.id,proof,True)
+            else:complete_cash_order(db,order_id,user.id,str(form.get('metode','')),form.get('jumlah_bayar'))
+        except RuleError as exc:
+            db.rollback()
+            order=db.get(Order,order_id)
+            if order is None:raise HTTPException(404,'Pesanan tidak ditemukan.')
+            response=page(request,'complete_order.html',user=user,order=order,amount=str(form.get('jumlah_bayar','')),method=str(form.get('metode','Cash')),error=str(exc))
+            response.status_code=400
+            return response
+    else:transition(db,order_id,target,user.id)
+    db.commit()
     return go('/pesanan',request,'Status pesanan diperbarui.')
+
+@app.get('/transaksi/{sale_id}/bukti')
+def payment_proof_page(sale_id:int,user:User=Depends(admin),db:Session=Depends(get_db)):
+    proof=db.scalar(select(Sale.payment_proof).where(Sale.id==sale_id))
+    if not proof:raise HTTPException(404,'Bukti pembayaran tidak ditemukan.')
+    return Response(proof,media_type='image/jpeg',headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline; filename="bukti-pembayaran.jpg"'})
 
 @app.get('/transaksi')
 def sales_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     rows=db.execute(select(Sale,Order).join(Order,Sale.order_id==Order.id).order_by(Sale.id.desc())).all()
-    return page(request,'sales.html',user=user,rows=rows)
+    proof_ids=set(db.scalars(select(Sale.id).where(Sale.payment_proof.is_not(None))))
+    return page(request,'sales.html',user=user,rows=rows,proof_ids=proof_ids)
 
 
 @app.post('/transaksi/{sale_id}/bayar')

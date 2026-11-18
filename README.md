@@ -231,3 +231,12 @@ Ubah jumlah lalu klik Perbarui keranjang, atau langsung Buat pesanan untuk memak
 terbaru. Total pada layar mengikuti input; server memeriksa ulang harga, ketersediaan dan stok.
 Jika stok berubah atau barang nonaktif, sesuaikan jumlah atau hapus barang sebelum melanjutkan.
 Checkout tidak mengurangi stok. Pesanan menunggu konfirmasi admin.
+
+### Cashless dengan bukti
+
+Pada Selesaikan, pilih Cashless, ambil foto/unggah gambar bukti lalu simpan setelah memastikan pembayaran
+sudah masuk dengan nominal sesuai setelah memeriksa aplikasi merchant. Simpan & selesaikan
+mencatat Lunas dan kembalian Rp0 serta menyimpan bukti khusus admin. Fitur tidak terhubung
+langsung ke GoPay/QRIS dan tidak memindahkan uang. Kamera memakai izin browser; jika tidak
+tersedia gunakan unggah gambar JPG/PNG/WebP maksimal 5 MB. Untuk pembaruan database lama,
+install requirements terbaru dan jalankan `python -m app.cli migrate-payments`.

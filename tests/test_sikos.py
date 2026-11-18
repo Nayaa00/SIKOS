@@ -308,7 +308,7 @@ def test_template_import_and_report_export(web):
     csrf=signin(web,True)
     response=web.get('/impor/template');assert response.status_code==200
     response=web.post('/impor',data={'csrf':csrf},files={'file':('produk.xlsx',response.content,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')})
-    assert 'Berhasil 1 baris' in response.text
+    assert 'Berhasil diimpor</span><strong>1</strong>' in response.text
     response=web.get('/laporan?export=xlsx')
     assert response.status_code==200
     book=pd.read_excel(BytesIO(response.content),sheet_name='Ringkasan')
@@ -729,13 +729,13 @@ def test_completion_auto_payment_once_and_no_manual_endpoint(web,store):
     assert sale.status_pembayaran=='Belum dibayar'
     csrf=signin(web,True)
     assert web.post(f'/transaksi/{sale.id}/bayar',data={'csrf':csrf,'jumlah_bayar':1}).status_code==410
-    response=web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai'})
+    response=web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai','metode':'Cash','jumlah_bayar':140000})
     assert response.status_code==200
     db.expire_all();sale=db.get(Sale,sale.id);order=db.get(Order,order.id)
     assert sale.status_pembayaran=='Lunas' and sale.jumlah_bayar==140000 and sale.kembalian==0
-    assert sale.paid_at==order.completed_at and db.get(Product,product.id).stok==8
+    assert sale.paid_at is not None and db.get(Product,product.id).stok==8
     paid_at=sale.paid_at
-    web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai'})
+    web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai','metode':'Cash','jumlah_bayar':140000})
     db.expire_all();assert db.get(Sale,sale.id).paid_at==paid_at
     assert 'name="jumlah_bayar"' not in web.get('/transaksi').text
 
@@ -920,3 +920,93 @@ def test_member_dashboard_counts_only_own_orders(web,store):
     section=re.search(r'<section aria-label="Ringkasan pesanan saya"(.*?)</section>',page.text,re.S).group(1)
     counts=dict(re.findall(r'<span class="small-note">([^<]+)</span><strong class="stat-value">(\d+)</strong>',section))
     assert counts=={'Menunggu konfirmasi':'1','Dikonfirmasi':'0','Selesai':'0','Dibatalkan':'0'}
+
+
+def test_stock_original_initial_quantity_and_sold_only_on_confirmation(web,store):
+    db,admin,member,_,product,_,_=store
+    product.stok=0;movement(db,product,20,admin.id,'Stok awal produk manual');db.commit()
+    order=create_order(db,member.id,{str(product.id):2},uuid4().hex)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    movement(db,product,5,admin.id,'Pembelian pemasok');db.commit()
+    movement(db,product,-1,admin.id,'Barang rusak');db.commit()
+    transition(db,order.id,'Dibatalkan',admin.id);db.commit()
+    signin(web,True);response=web.get('/stok')
+    assert response.status_code==200
+    assert '<th>Produk</th><th>Stok Awal</th><th>Terjual</th><th>Stok sesudah</th>' in response.text
+    rows=re.findall(r'<tr>(.*?)</tr>',response.text,re.S)
+    for row in rows:
+        if 'Beras 5kg' not in row:continue
+        assert '<td>20</td>' in row
+        if 'Konfirmasi pesanan' in row:assert '<td>20</td><td>2</td><td>18</td>' in row
+        if 'Pembelian pemasok' in row:assert '<td>20</td><td>0</td><td>23</td>' in row
+        if 'Barang rusak' in row:assert '<td>20</td><td>0</td><td>22</td>' in row
+        if 'Pembatalan pesanan' in row:assert '<td>20</td><td>0</td><td>24</td>' in row
+    assert db.get(Product,product.id).stok==24
+
+
+def test_import_card_only_upload_and_reports_stay_in_reports_menu(web):
+    signin(web,True)
+    response=web.get('/impor')
+    assert 'Unduh template Excel' not in response.text
+    assert 'Kolom wajib:' not in response.text and 'Pindahkan data lama' not in response.text
+    assert 'action="/laporan"' not in response.text and 'Unduh laporan penjualan Excel' not in response.text
+    assert 'enctype="multipart/form-data"' in response.text and 'Validasi &amp; impor' in response.text
+    assert 'name="file"' in response.text
+    for kind in ('harian','mingguan','bulanan','tahunan'):
+        response=web.get('/laporan',params={'export':'xlsx','periode':kind,'tanggal':'2026-11-18'})
+        assert response.status_code==200
+        book=pd.ExcelFile(BytesIO(response.content))
+        assert 'Ringkasan' in book.sheet_names and 'Rincian' in book.sheet_names
+        assert pd.read_excel(book,sheet_name='Ringkasan').iloc[0]['periode']==kind
+
+
+def test_cash_completion_form_and_validation(web,store):
+    db,admin,member,_,p,_,_=store
+    order=create_order(db,member.id,{str(p.id):1},uuid4().hex)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    csrf=signin(web,True)
+    assert 'Uang Pembayaran' in web.get(f'/pesanan/{order.id}/selesaikan').text
+    for data in ({},{'metode':'Cashless','jumlah_bayar':100000},{'metode':'Cash','jumlah_bayar':50000},{'metode':'Cash','jumlah_bayar':'1.5'}):
+        result=web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai',**data})
+        assert result.status_code==400
+        db.expire_all();assert db.get(Order,order.id).status=='Dikonfirmasi'
+    result=web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai','metode':'Cash','jumlah_bayar':100000,'kembalian':999999})
+    assert result.status_code==200
+    db.expire_all();sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+    assert sale.jumlah_bayar==100000 and sale.kembalian==30000 and sale.status_pembayaran=='Lunas'
+    assert db.get(Product,p.id).stok==9
+    signin(web);assert web.get(f'/pesanan/{order.id}/selesaikan').status_code==403
+
+
+def test_cashless_proof_upload_verification_privacy_and_idempotency(web,store):
+    from PIL import Image
+    db,admin,member,_,p,_,_=store
+    order=create_order(db,member.id,{str(p.id):1},uuid4().hex)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    csrf=signin(web,True)
+    payload={'csrf':csrf,'status':'Selesai','metode':'Cashless'}
+    url=f'/pesanan/{order.id}/status'
+    assert web.post(url,data=payload).status_code==400
+    assert web.post(url,data=payload,files={'payment_proof':('fake.jpg',b'not an image','image/jpeg')}).status_code==400
+    image=BytesIO();Image.new('RGB',(50,50),'white').save(image,'PNG');raw=image.getvalue()
+    db.expire_all();assert db.get(Order,order.id).status=='Dikonfirmasi'
+    result=web.post(url,data=payload,files={'payment_proof':('proof.png',raw,'image/png')})
+    assert result.status_code==200
+    db.expire_all();sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+    assert sale.metode_pembayaran=='Cashless' and sale.jumlah_bayar==70000 and sale.kembalian==0
+    assert sale.payment_verified_by==admin.id and sale.payment_proof.startswith(b'\xff\xd8')
+    assert db.get(Order,order.id).status=='Selesai' and db.get(Product,p.id).stok==9
+    proof=sale.payment_proof;paid=sale.paid_at
+    assert web.post(url,data=payload,files={'payment_proof':('proof.png',raw,'image/png')}).status_code==200
+    db.expire_all();assert db.get(Sale,sale.id).payment_proof==proof and db.get(Sale,sale.id).paid_at==paid
+    response=web.get(f'/transaksi/{sale.id}/bukti')
+    assert response.status_code==200 and response.headers['content-type']=='image/jpeg'
+    assert response.headers['cache-control']=='no-store'
+    assert 'Lihat bukti' in web.get('/transaksi').text
+    signin(web);assert web.get(f'/transaksi/{sale.id}/bukti').status_code==403
+
+
+def test_payment_proof_size_and_image_validation():
+    from app.payment_proofs import validate_payment_proof,MAX_PROOF_SIZE
+    for raw in (b'',b'x'*(MAX_PROOF_SIZE+1),b'<svg></svg>'):
+        with pytest.raises(RuleError):validate_payment_proof(raw)

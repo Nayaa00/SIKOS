@@ -6,7 +6,7 @@
 
 <p class="muted">
     Transaksi dibuat satu kali saat konfirmasi.
-    Pembayaran otomatis dicatat lunas sebesar total pesanan ketika admin menekan Selesaikan. Kembalian otomatis Rp0.
+    Pembayaran dicatat setelah validasi Cash atau konfirmasi bukti Cashless pada penyelesaian pesanan.
     Pembatalan menandainya tidak valid untuk analisis.
 </p>
 
@@ -20,7 +20,7 @@
                 <th>Total</th>
                 <th>Status pesanan</th>
                 <th>Validitas</th>
-                <th>Status pembayaran</th>
+                <th>Status pembayaran</th><th>Metode / bukti</th>
                 <th>Uang diterima</th>
                 <th>Kembalian</th>
 
@@ -50,7 +50,7 @@
                     {% endif %}
                 </td>
 
-                <td>{{ sale.jumlah_bayar|rupiah }}</td>
+                <td>{{ sale.metode_pembayaran }}{% if sale.id in proof_ids %}<br><a href="/transaksi/{{ sale.id }}/bukti" target="_blank" rel="noopener">Lihat bukti</a>{% endif %}</td><td>{{ sale.jumlah_bayar|rupiah }}</td>
                 <td>{{ sale.kembalian|rupiah }}</td>
 
 
@@ -58,7 +58,7 @@
 
             {% else %}
             <tr>
-                <td colspan="9" class="empty">
+                <td colspan="10" class="empty">
                     Belum ada transaksi dikonfirmasi.
                 </td>
             </tr>

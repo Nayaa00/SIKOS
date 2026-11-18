@@ -253,3 +253,46 @@ def test_mysql_completion_auto_payment_parallel_once(mysql_store):
         assert sale.paid_at==order.completed_at and db.get(Product,pid).stok==0
         assert db.scalar(select(func.count()).select_from(Sale).where(Sale.order_id==oid))==1
         assert db.scalar(select(func.count()).select_from(StockMovement).where(StockMovement.order_id==oid))==1
+
+
+def test_mysql_cash_completion_parallel_keeps_actual_change(mysql_store):
+    from app.services import complete_cash_order
+    factory,(admin,member,pid,_) = mysql_store
+    with factory() as db:
+        order=create_order(db,member,{str(pid):1},uuid4().hex)
+        transition(db,order.id,'Dikonfirmasi',admin);db.commit();oid=order.id
+    barrier=Barrier(2)
+    def worker():
+        with factory() as db:
+            barrier.wait(timeout=10)
+            result=complete_cash_order(db,oid,admin,'Cash',20000)
+            db.commit();return result.id
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures=[executor.submit(worker) for _ in range(2)]
+        assert [f.result(timeout=30) for f in futures]==[oid,oid]
+    with factory() as db:
+        sale=db.scalar(select(Sale).where(Sale.order_id==oid))
+        assert sale.jumlah_bayar==20000 and sale.kembalian==10000
+        assert db.get(Order,oid).status=='Selesai' and db.get(Product,pid).stok==0
+        assert db.scalar(select(func.count()).select_from(Sale).where(Sale.order_id==oid))==1
+
+
+def test_mysql_cashless_evidence_persisted_atomically(mysql_store):
+    from io import BytesIO
+    from PIL import Image
+    from app.payment_proofs import validate_payment_proof
+    from app.services import complete_cashless_order
+    factory,(admin,member,pid,_) = mysql_store
+    image=BytesIO();Image.new('RGB',(30,30),'white').save(image,'PNG')
+    proof=validate_payment_proof(image.getvalue())
+    with factory() as db:
+        order=create_order(db,member,{str(pid):1},uuid4().hex)
+        transition(db,order.id,'Dikonfirmasi',admin);db.commit();oid=order.id
+        complete_cashless_order(db,oid,admin,proof,True);db.commit()
+    with factory() as db:
+        sale=db.scalar(select(Sale).where(Sale.order_id==oid))
+        assert sale.payment_proof==proof and sale.payment_verified_by==admin
+        assert sale.metode_pembayaran=='Cashless' and sale.jumlah_bayar==10000 and sale.kembalian==0
+        assert db.get(Order,oid).status=='Selesai' and db.get(Product,pid).stok==0
+        complete_cashless_order(db,oid,admin,proof,True);db.commit()
+        assert db.scalar(select(func.count()).select_from(Sale).where(Sale.order_id==oid))==1

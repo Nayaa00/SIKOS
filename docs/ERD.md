@@ -72,6 +72,8 @@ erDiagram
         bigint jumlah_bayar
         bigint kembalian
         datetime paid_at
+        blob payment_proof
+        int payment_verified_by FK
         boolean valid
         bigint total
     }
