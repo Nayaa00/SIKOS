@@ -1,0 +1,38 @@
+name: sikos-deploy
+services:
+  db:
+    image: ${SIKOS_MYSQL_IMAGE:-mysql:8.4}
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: sikos
+      MYSQL_USER: sikos_app
+      MYSQL_PASSWORD: ${SIKOS_DB_PASSWORD:?Set private Docker environment}
+      MYSQL_ROOT_PASSWORD: ${SIKOS_ROOT_PASSWORD:?Set private Docker environment}
+    volumes:
+      - sikos_mysql:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --user="$${MYSQL_USER}" --database=sikos --execute="SELECT 1" >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://sikos_app:${SIKOS_DB_PASSWORD:?Set private Docker environment}@db:3306/sikos?charset=utf8mb4
+      SESSION_SECRET: ${SIKOS_SESSION_SECRET:?Set private Docker environment}
+      COOKIE_SECURE: ${SIKOS_COOKIE_SECURE:-0}
+    ports:
+      - "${SIKOS_BIND_ADDRESS:-127.0.0.1}:${SIKOS_HTTP_PORT:-8002}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/login', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 30s
+volumes:
+  sikos_mysql:

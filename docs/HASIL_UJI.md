@@ -418,3 +418,9 @@ Verifikasi worktree cipa: 101 tes lulus dalam 82.53 detik (89 SQLite/HTTP + 12 M
 - Build Tailwind berhasil. Pengujian integrasi worktree: 102 passed, termasuk suite database MariaDB XAMPP (bukan MySQL 8).
 - Pratinjau browser memakai bingkai 390 x 844; pemeriksaan visual katalog anggota terbatas karena sesi browser admin.
 
+## Deployment Docker (18 November 2026)
+- 90 tes aplikasi lulus di image Python 3.12 Linux dengan SQLite terisolasi.
+- 12 tes database nyata lulus pada MySQL 9.4.0 Docker, database sikos_test terpisah.
+- Restore backup database XAMPP ke database Docker baru berhasil; jumlah baris 11 tabel cocok. CHECK bernama sama diberi nama unik untuk kompatibilitas MariaDB/MySQL.
+- Compose web/db healthy. Halaman login HTTPS publik HTTP 200, cookie Secure, dan tampilan login diperiksa melalui browser. Alur login dengan akun asli belum diuji manual di alamat publik.
+- Unduhan 8.4 gagal karena TLS timeout/EOF; runtime percobaan memakai image lokal MySQL 9.4.0 dipatok digest. Bukan deployment hosting permanen.
