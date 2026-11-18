@@ -226,6 +226,8 @@ def dashboard(request:Request,user:User=Depends(current),db:Session=Depends(get_
     analysis=analyze(db,kind,day)
     stock=db.scalars(select(Product).join(Category).where(Product.active.is_(True),Category.active.is_(True)).order_by(Product.stok.desc(),Product.kode).limit(5)).all()
     return page(request,'dashboard.html',user=user,analysis=analysis,stock=stock,
+                recent_orders=db.scalars(select(Order).options(joinedload(Order.member)).order_by(Order.id.desc()).limit(5)).all(),
+                low_stock=db.scalars(select(Product).join(Category).where(Product.active.is_(True),Category.active.is_(True),Product.stok<=5).order_by(Product.stok,Product.nama).limit(5)).all(),
                 member_count=db.scalar(select(func.count()).select_from(User).where(User.role=='anggota',User.active.is_(True))),
                 product_count=db.scalar(select(func.count()).select_from(Product).where(Product.active.is_(True))),
                 pending=db.scalar(select(func.count()).select_from(Order).where(Order.status=='Menunggu konfirmasi')))

@@ -309,3 +309,14 @@ susunan dashboard admin terbaru dan perubahan grafik tidak disertakan pada integ
 Worktree integrasi: build Tailwind berhasil, syntax JS lulus, 78 tes lulus dalam 62.19 detik
 (69 SQLite/HTTP + 9 MariaDB XAMPP, 1 warning deprecation). MySQL 8 belum diuji. Tidak mengubah
 .env atau database operasional saat pengujian; database nyata memakai URL khusus _test.
+
+## Integrasi sisa tampilan ke Octavian — 18 November 2026
+
+Meneruskan fondasi branch luthfi (daa624c) dengan redesign workspace/sidebar, navigasi
+responsif, susunan dashboard admin, ringkasan pesanan, tata letak profil/persediaan, dan
+grafik Garis/Batang bergradasi. Tidak menghapus fitur notifikasi dan perapian kartu yang
+sudah masuk luthfi. Branch tujuan adalah Octavian; pian tidak dibuat di remote.
+
+Hasil pada worktree integrasi: 78 tes lulus dalam 59.64 detik (69 SQLite/HTTP dan 9 MariaDB
+XAMPP), 1 warning deprecation. MySQL 8 belum diuji. Pemeriksaan JavaScript grafik dan
+notifikasi lulus. CSS hasil build yang sudah diverifikasi di folder utama disertakan.

@@ -93,3 +93,25 @@ visual sesi anggota masih perlu dilakukan; alur anggota tercakup pada tes HTTP.
 
 Gunakan CSS komponen pada assets/tailwind.css untuk perubahan lintas halaman. Untuk perubahan
 khusus elemen, gunakan utility tw: pada template. Rebuild hasil CSS setiap selesai perubahan.
+
+## Redesign struktur workspace (18 November 2026)
+
+Sidebar terang dibagi menjadi navigasi utama dan pengelolaan data, dengan ikon SVG lokal,
+penanda halaman aktif, breadcrumb dan identitas akun. Pada layar kecil sidebar menjadi
+drawer dengan backdrop, fokus keyboard terkurung, Escape untuk menutup dan inert pada
+konten di belakangnya. Tidak ada aset UI yang membutuhkan CDN tambahan.
+
+Dashboard admin kini memakai susunan utama dan panel samping: tiga ringkasan, grafik,
+lima pesanan terbaru, pesanan menunggu, stok rendah (maksimal 5 unit), produk terlaris
+berdasarkan unit, dan persediaan tertinggi. Dua kueri dashboard baru hanya membaca data.
+Produk memakai kartu horizontal dua kolom pada desktop; pesanan mempunyai ringkasan
+terpisah di sisi kanan; formulir persediaan ditempatkan di samping audit pada desktop
+lebar; profil menggunakan panel identitas dan formulir terpisah. Komponen bersama
+mengatur warna hijau hutan, krem, tipografi, formulir, tabel dan tombol lintas halaman.
+
+Validasi: build Tailwind berhasil; 72 tes lulus, 1 warning deprecation dalam 51.86 detik
+(64 SQLite/HTTP dan 8 MariaDB XAMPP, bukan MySQL 8). Smoke test browser admin mencakup
+dashboard, produk, pesanan, persediaan, impor, laporan, serta buka/tutup drawer pada
+viewport sempit. Tidak menyimpan formulir atau mengubah transaksi operasional saat
+smoke test. Sesi anggota belum diperiksa visual secara langsung; tes HTTP anggota lulus.
+Perubahan disimpan lokal pada codex/tailwind-ui dan belum di-push.
