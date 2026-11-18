@@ -6,6 +6,7 @@
 
 <p class="muted">
     Transaksi dibuat satu kali saat konfirmasi.
+    Pembayaran otomatis dicatat lunas sebesar total pesanan ketika admin menekan Selesaikan. Kembalian otomatis Rp0.
     Pembatalan menandainya tidak valid untuk analisis.
 </p>
 
@@ -22,7 +23,7 @@
                 <th>Status pembayaran</th>
                 <th>Uang diterima</th>
                 <th>Kembalian</th>
-                <th>Aksi pembayaran</th>
+
             </tr>
         </thead>
 
@@ -52,31 +53,12 @@
                 <td>{{ sale.jumlah_bayar|rupiah }}</td>
                 <td>{{ sale.kembalian|rupiah }}</td>
 
-                <td>
-                    {% if sale.valid and sale.status_pembayaran != 'Lunas' %}
-                    <form method="post" action="/transaksi/{{ sale.id }}/bayar">
 
-                        <input type="hidden" name="csrf" value="{{ csrf }}">
-
-                        <input type="number" name="jumlah_bayar" min="{{ sale.total }}" max="1000000000" step="1"
-                            placeholder="Uang diterima" required>
-
-                        <button type="submit">
-                            Catat pembayaran
-                        </button>
-                    </form>
-
-                    {% elif sale.status_pembayaran == 'Lunas' %}
-                    <span class="muted">Sudah dibayar</span>
-                    {% else %}
-                    <span class="muted">Transaksi tidak valid</span>
-                    {% endif %}
-                </td>
             </tr>
 
             {% else %}
             <tr>
-                <td colspan="10" class="empty">
+                <td colspan="9" class="empty">
                     Belum ada transaksi dikonfirmasi.
                 </td>
             </tr>

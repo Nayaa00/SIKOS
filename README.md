@@ -68,7 +68,7 @@ python -m uvicorn app.main:app --reload
 4. Produk: tambah/edit data produk. Stok awal masuk catatan stok. Untuk gambar opsional, isi URL HTTPS gambar.
 5. Persediaan: catat masuk/keluar dengan alasan. Stok negatif ditolak. Audit mencatat pelaku dan stok sesudah perubahan.
 6. Impor Excel: unduh template, isi dan unggah. Header wajib `kode,nama,label,kategori,harga,stok,satuan`, deskripsi opsional. Kolom boleh beda urutan. Harga rupiah bulat, stok integer nonnegatif. Maksimal 5.000 baris / 10 MB. Ubah formula menjadi nilai.
-7. Pesanan: konfirmasi pesanan anggota. Konfirmasi mengurangi stok tepat sekali dan mencatat transaksi. Selesaikan setelah barang diserahkan.
+7. Pesanan: konfirmasi pesanan anggota. Konfirmasi mengurangi stok tepat sekali dan mencatat transaksi. Selesaikan setelah pembayaran tunai dan penyerahan selesai; pembayaran otomatis Lunas sebesar total pesanan dengan kembalian Rp0.
 8. Pembatalan sebelum konfirmasi tidak memengaruhi stok. Pembatalan setelah konfirmasi mengembalikan stok tepat sekali dan membatalkan validitas transaksi. Pesanan Selesai tidak dapat dibatalkan pada versi ini.
 9. Transaksi menampilkan catatan valid/batal. Laporan hanya menghitung transaksi valid dari tanggal konfirmasi.
 

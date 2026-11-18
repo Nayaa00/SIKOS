@@ -1,11 +1,11 @@
 {% extends 'base.html' %}{% block title %}Transaksi Saya · SIKOS{% endblock %}{% block content %}
-<span class="eyebrow">RIWAYAT BELANJA</span><h1>Transaksi Saya</h1><p class="muted">Transaksi tercatat setelah admin mengonfirmasi pesanan. Pembayaran tunai dicatat oleh admin koperasi.</p>
+<span class="eyebrow">RIWAYAT BELANJA</span><h1>Transaksi Saya</h1><p class="muted">Transaksi tercatat setelah admin mengonfirmasi pesanan. Pembayaran dicatat otomatis ketika admin menyelesaikan pesanan.</p>
 <p class="small-note">{{ window.total }} transaksi · <a href="/pesanan">Lihat pesanan saya</a></p>
 {% for sale,order in rows %}<article class="card order-card"><div class="toolbar"><h2>{{ order.kode }}</h2><span class="pill">{{ order.status }}</span></div>
 <p class="small-note">Konfirmasi: {{ sale.created_at|wib }}</p>
 {% if not sale.valid %}<p class="notice form-error">Transaksi dibatalkan dan tidak dihitung dalam penjualan.{% if sale.status_pembayaran=='Lunas' %} Pembayaran sebelumnya tercatat; hubungi koperasi untuk pengembalian uang.{% endif %}</p>{% endif %}
 <div class="transaction-summary"><div><span class="small-note">Total transaksi</span><strong>{{ sale.total|rupiah }}</strong></div><div><span class="small-note">Pembayaran {{ sale.metode_pembayaran }}</span><strong>{{ sale.status_pembayaran }}</strong></div></div>
-{% if sale.status_pembayaran=='Lunas' %}<p class="small-note">Dibayar: {{ sale.paid_at|wib }} · Uang diterima {{ sale.jumlah_bayar|rupiah }} · Kembalian {{ sale.kembalian|rupiah }}</p>{% elif sale.valid %}<p class="small-note">Pembayaran belum dicatat. Silakan selesaikan pembayaran langsung di koperasi.</p>{% endif %}
+{% if sale.status_pembayaran=='Lunas' %}<p class="small-note">Dibayar: {{ sale.paid_at|wib }} · Uang diterima {{ sale.jumlah_bayar|rupiah }} · Kembalian {{ sale.kembalian|rupiah }}</p>{% elif sale.valid %}<p class="small-note">Pembayaran akan tercatat setelah pesanan diselesaikan oleh admin.</p>{% endif %}
 <details><summary>Rincian barang</summary><div class="table-scroll"><table><thead><tr><th>Barang</th><th>Jumlah</th><th>Harga saat pesan</th><th>Subtotal</th></tr></thead><tbody>{% for line in order.lines %}<tr><td>{{ line.nama }}</td><td>{{ line.qty }}</td><td>{{ line.harga|rupiah }}</td><td>{{ line.subtotal|rupiah }}</td></tr>{% endfor %}</tbody></table></div></details></article>
 {% else %}<section class="card empty"><h2>Belum ada transaksi</h2><p>Pesanan Anda akan muncul di sini setelah dikonfirmasi admin.</p><a href="/pesanan">Lihat pesanan saya</a></section>{% endfor %}
 {% include '_history_pagination.html' %}{% endblock %}

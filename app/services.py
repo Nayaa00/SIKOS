@@ -138,6 +138,7 @@ def transition(db, order_id, target, actor):
 
     elif target == 'Selesai':
         order.completed_at = utcnow()
+        settle_completed_order(db,order)
 
     order.status = target
     db.flush()
@@ -211,3 +212,31 @@ def cancel_member_order(db, order_id, member_id):
     if order.status!='Menunggu konfirmasi':
         raise RuleError('Pesanan sudah diproses admin. Hanya pesanan Menunggu konfirmasi yang dapat Anda batalkan.')
     return transition(db,order_id,'Dibatalkan',member_id)
+
+
+def settle_completed_order(db,order):
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id)
+                   .with_for_update().execution_options(populate_existing=True))
+    if sale is None or not sale.valid:
+        raise RuleError('Transaksi valid untuk pesanan ini tidak ditemukan.')
+    if sale.status_pembayaran=='Lunas':return sale
+    if sale.jumlah_bayar or sale.kembalian or sale.paid_at:
+        raise RuleError('Catatan pembayaran lama perlu diperiksa sebelum menyelesaikan pesanan.')
+    sale.metode_pembayaran='Tunai'
+    sale.status_pembayaran='Lunas'
+    sale.jumlah_bayar=sale.total
+    sale.kembalian=0
+    sale.paid_at=order.completed_at
+    return sale
+
+def sync_completed_payments(db):
+    ids=db.scalars(select(Order.id).join(Sale,Sale.order_id==Order.id).where(
+        Order.status=='Selesai',Order.completed_at.is_not(None),Sale.valid.is_(True),
+        Sale.status_pembayaran=='Belum dibayar',Sale.jumlah_bayar==0,
+        Sale.kembalian==0,Sale.paid_at.is_(None)).order_by(Order.id)).all()
+    count=0
+    for oid in ids:
+        order=db.scalar(select(Order).where(Order.id==oid).with_for_update().execution_options(populate_existing=True))
+        if order.status=='Selesai':settle_completed_order(db,order);count+=1
+    db.flush()
+    return count

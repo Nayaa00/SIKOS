@@ -238,3 +238,18 @@ def test_mysql_payment_races_cancellation(mysql_store):
         sale=db.get(Sale,sid);assert not sale.valid
         assert sale.jumlah_bayar==(10000 if results[0]=='ok' else 0)
         assert db.scalar(select(func.count()).select_from(StockMovement).where(StockMovement.order_id==oid))==2
+
+
+def test_mysql_completion_auto_payment_parallel_once(mysql_store):
+    factory,(admin,member,pid,_) = mysql_store
+    with factory() as db:
+        order=create_order(db,member,{str(pid):1},uuid4().hex)
+        transition(db,order.id,'Dikonfirmasi',admin);db.commit();oid=order.id
+    results=parallel_transitions(factory,[oid,oid],'Selesai',admin)
+    with factory() as db:
+        order=db.get(Order,oid);sale=db.scalar(select(Sale).where(Sale.order_id==oid))
+        assert order.status=='Selesai' and sale.status_pembayaran=='Lunas'
+        assert sale.jumlah_bayar==10000 and sale.kembalian==0
+        assert sale.paid_at==order.completed_at and db.get(Product,pid).stok==0
+        assert db.scalar(select(func.count()).select_from(Sale).where(Sale.order_id==oid))==1
+        assert db.scalar(select(func.count()).select_from(StockMovement).where(StockMovement.order_id==oid))==1

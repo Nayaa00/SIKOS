@@ -170,3 +170,12 @@ urutan konsisten. Stok, snapshot dan empat status PRD tetap dipertahankan.
 Batas saat ini: pengembalian uang belum dicatat sebagai proses terpisah. Transaksi dibatalkan
 yang sebelumnya dibayar menampilkan instruksi menghubungi koperasi, sambil mempertahankan
 catatan pembayaran historis. Ini tidak mengubah aturan stok/analisis dan tidak menambah gateway.
+
+### Pembayaran otomatis (18 November 2026)
+
+Aturan ini menggantikan alur input uang manual sebelumnya. Di menu Pesanan, admin menekan
+Selesaikan setelah pembayaran/penyerahan selesai. Sistem mencatat Lunas, uang diterima sama
+dengan total, kembalian Rp0, dan waktu pembayaran otomatis. Form pembayaran manual di
+Transaksi dihapus; halaman Transaksi Saya mengikuti hasil yang sama. Nominal pembayaran
+lama yang sudah tercatat tidak ditimpa. Untuk pesanan lama yang Selesai namun belum punya
+pembayaran, jalankan `python -m app.cli sync-completed-payments`. Stok tidak berubah saat Selesaikan.

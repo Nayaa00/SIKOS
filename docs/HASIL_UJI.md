@@ -174,3 +174,23 @@ Perubahan belum dipush; pengiriman ke branch remote menunggu instruksi pengguna.
 Hasil pekerjaan malam ini mencakup integrasi cipa/luthfi, pembayaran tunai, penyelesaian
 Transaksi Saya/pembatalan mandiri, perbaikan form akun/profil, optimasi query dan riwayat,
 serta penyesuaian UI di atas. Perubahan dikumpulkan ke branch nayaa sesuai instruksi pengguna.
+
+## Pembayaran otomatis saat Selesaikan — 18 November 2026
+
+Klik Selesaikan pada pesanan Dikonfirmasi kini sekaligus mencatat pembayaran Lunas,
+uang diterima sebesar total snapshot, kembalian 0 dan paid_at sama dengan completed_at.
+Keduanya disimpan atomik dengan lock pesanan lalu transaksi. Klik berulang tidak mengubah
+waktu/nominal lagi dan tidak mengurangi stok. Catatan pembayaran lama yang sudah Lunas
+(dengan uang/kembalian aktual) tetap dipertahankan.
+
+Form/kolom Aksi pembayaran di Transaksi dihapus. Endpoint manual lama menolak admin dengan
+410 setelah pemeriksaan CSRF; pembeli tetap ditolak 403. Transaksi Saya mengikuti status baru.
+Untuk data lama tersedia `python -m app.cli sync-completed-payments`: hanya transaksi valid,
+Selesai, completed_at tersedia dan pembayaran benar-benar kosong yang diisi; aman diulang.
+Pada database sikos lokal satu transaksi lama disinkronkan. Tidak ada gateway/transfer uang;
+Selesaikan adalah keputusan admin bahwa pembayaran tunai dan penyerahan sudah selesai.
+
+Verifikasi: suite 64 passed (59 SQLite/HTTP + 5 MariaDB) dalam 45.88 detik; setelah itu tes
+MariaDB baru penyelesaian paralel 1 passed, 5 deselected. Total 65 skenario terverifikasi,
+bukan satu eksekusi penuh 65 tes. MySQL 8 belum diuji. Snapshot, pembatalan, pembayaran lama,
+sinkronisasi idempoten dan penutupan endpoint manual tercakup. Satu warning Starlette/httpx.

@@ -629,19 +629,7 @@ async def sale_payment(
     form = await request.form()
     check_csrf(request, form)
 
-    amount = integer(
-        form.get('jumlah_bayar'),
-        'Jumlah uang diterima'
-    )
-
-    record_payment(db, sale_id, amount)
-    db.commit()
-
-    return go(
-        '/transaksi',
-        request,
-        'Pembayaran berhasil dicatat.'
-    )
+    raise HTTPException(410,'Pembayaran dicatat otomatis saat pesanan diselesaikan melalui menu Pesanan.')
 
 @app.get('/laporan')
 def report_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):

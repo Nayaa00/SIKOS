@@ -721,87 +721,41 @@ def test_profile_invalid_email_and_password_atomic(web,store):
     assert 'Profil berhasil diperbarui' in result.text
     db.expire_all();assert verify_password('password-new',db.get(User,2).password_hash)
 
-def test_admin_can_record_cash_payment(web, store):
-    db, admin, member, _, product, _, _ = store
+def test_completion_auto_payment_once_and_no_manual_endpoint(web,store):
+    db,admin,member,_,product,_,_=store
+    order=create_order(db,member.id,{str(product.id):2},uuid4().hex)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+    assert sale.status_pembayaran=='Belum dibayar'
+    csrf=signin(web,True)
+    assert web.post(f'/transaksi/{sale.id}/bayar',data={'csrf':csrf,'jumlah_bayar':1}).status_code==410
+    response=web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai'})
+    assert response.status_code==200
+    db.expire_all();sale=db.get(Sale,sale.id);order=db.get(Order,order.id)
+    assert sale.status_pembayaran=='Lunas' and sale.jumlah_bayar==140000 and sale.kembalian==0
+    assert sale.paid_at==order.completed_at and db.get(Product,product.id).stok==8
+    paid_at=sale.paid_at
+    web.post(f'/pesanan/{order.id}/status',data={'csrf':csrf,'status':'Selesai'})
+    db.expire_all();assert db.get(Sale,sale.id).paid_at==paid_at
+    assert 'name="jumlah_bayar"' not in web.get('/transaksi').text
 
-    order = create_order(
-        db, member.id, {str(product.id): 1}, 'b' * 32
-    )
-    transition(db, order.id, 'Dikonfirmasi', admin.id)
-    db.commit()
-
-    sale = db.scalar(
-        select(Sale).where(Sale.order_id == order.id)
-    )
-
-    csrf = signin(web, True)
-
-    response = web.post(
-        f'/transaksi/{sale.id}/bayar',
-        data={
-            'csrf': csrf,
-            'jumlah_bayar': 80000
-        }
-    )
-
-    assert response.status_code == 200
-
-    db.refresh(sale)
-    assert sale.status_pembayaran == 'Lunas'
-    assert sale.metode_pembayaran == 'Tunai'
-    assert sale.jumlah_bayar == 80000
-    assert sale.kembalian == 10000
-    assert sale.paid_at is not None
-
-
-def test_payment_rejects_insufficient_and_duplicate(web, store):
-    db, admin, member, _, product, _, _ = store
-
-    order = create_order(
-        db, member.id, {str(product.id): 1}, 'c' * 32
-    )
-    transition(db, order.id, 'Dikonfirmasi', admin.id)
-    db.commit()
-
-    sale = db.scalar(
-        select(Sale).where(Sale.order_id == order.id)
-    )
-
-    csrf = signin(web, True)
-
-    insufficient = web.post(
-        f'/transaksi/{sale.id}/bayar',
-        data={
-            'csrf': csrf,
-            'jumlah_bayar': 50000
-        }
-    )
-
-    assert insufficient.status_code == 400
-
-    db.refresh(sale)
-    assert sale.status_pembayaran == 'Belum dibayar'
-
-    successful = web.post(
-        f'/transaksi/{sale.id}/bayar',
-        data={
-            'csrf': csrf,
-            'jumlah_bayar': 70000
-        }
-    )
-
-    assert successful.status_code == 200
-
-    duplicate = web.post(
-        f'/transaksi/{sale.id}/bayar',
-        data={
-            'csrf': csrf,
-            'jumlah_bayar': 70000
-        }
-    )
-
-    assert duplicate.status_code == 400
-
+def test_completion_preserves_old_payment_and_sync_only_completed(store):
+    from app.services import sync_completed_payments
+    db,admin,member,_,product,_,_=store
+    paid=create_order(db,member.id,{str(product.id):1},uuid4().hex)
+    transition(db,paid.id,'Dikonfirmasi',admin.id);db.commit()
+    sale=db.scalar(select(Sale).where(Sale.order_id==paid.id))
+    record_payment(db,sale.id,80000);db.commit();old=sale.paid_at
+    transition(db,paid.id,'Selesai',admin.id);db.commit()
+    assert sale.jumlah_bayar==80000 and sale.kembalian==10000 and sale.paid_at==old
+    legacy=create_order(db,member.id,{str(product.id):1},uuid4().hex)
+    transition(db,legacy.id,'Dikonfirmasi',admin.id);db.commit()
+    legacy.status='Selesai';legacy.completed_at=datetime(2026,11,18,1);db.commit()
+    before=product.stok
+    assert sync_completed_payments(db)==1;db.commit()
+    assert sync_completed_payments(db)==0 and product.stok==before
+    legacy_sale=db.scalar(select(Sale).where(Sale.order_id==legacy.id))
+    assert legacy_sale.jumlah_bayar==70000 and legacy_sale.paid_at==legacy.completed_at
 
 def test_member_cannot_record_payment(web, store):
     db, admin, member, _, product, _, _ = store
