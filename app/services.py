@@ -36,8 +36,12 @@ def code(value):
 def movement(db, product, delta, actor, reason, order_id=None):
     if product.stok + delta < 0 or product.stok + delta > 1_000_000_000:
         raise RuleError(f'Stok {product.nama} tidak cukup atau melebihi batas.')
+    before=product.stok
     product.stok += delta
-    db.add(StockMovement(product_id=product.id,actor_id=actor,delta=delta,after=product.stok,alasan=reason,order_id=order_id))
+    audit=StockMovement(product_id=product.id,actor_id=actor,delta=delta,after=product.stok,alasan=reason,order_id=order_id)
+    db.add(audit);db.flush()
+    from .notifications import stock_changed
+    stock_changed(db,product,before,audit)
 
 def create_order(db, member, cart, token):
     if not re.fullmatch('[a-f0-9]{32}',token):
@@ -62,6 +66,8 @@ def create_order(db, member, cart, token):
         order.total+=subtotal
     db.add(order)
     db.flush()
+    from .notifications import order_created
+    order_created(db,order)
     return order
 
 
@@ -141,6 +147,8 @@ def transition(db, order_id, target, actor):
         settle_completed_order(db,order)
 
     order.status = target
+    from .notifications import order_changed
+    order_changed(db,order)
     db.flush()
     return order
 
@@ -196,6 +204,8 @@ def record_payment(db, sale_id, amount):
     sale.jumlah_bayar = amount
     sale.kembalian = amount - sale.total
     sale.paid_at = utcnow()
+    from .notifications import payment_received
+    payment_received(db,sale)
 
     db.flush()
     return sale
@@ -227,6 +237,8 @@ def settle_completed_order(db,order):
     sale.jumlah_bayar=sale.total
     sale.kembalian=0
     sale.paid_at=order.completed_at
+    from .notifications import payment_received
+    payment_received(db,sale)
     return sale
 
 def sync_completed_payments(db):
@@ -270,4 +282,6 @@ def complete_cashless_order(db,order_id,actor,proof,verified):
     sale.metode_pembayaran='Cashless';sale.status_pembayaran='Lunas'
     sale.jumlah_bayar=sale.total;sale.kembalian=0;sale.paid_at=utcnow()
     sale.payment_proof=proof;sale.payment_verified_by=actor
+    from .notifications import payment_received
+    payment_received(db,sale)
     return transition(db,order.id,'Selesai',actor)

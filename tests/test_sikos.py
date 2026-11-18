@@ -852,7 +852,9 @@ def test_member_sales_private_snapshot_payment_and_void(web,store):
     csrf=signin(web)
     result=web.get('/transaksi-saya')
     assert result.status_code==200 and own.kode in result.text
-    assert foreign.kode not in result.text and pending.kode not in result.text
+    assert foreign.kode not in result.text
+    # Own pending order may appear in the private bell, but never in transaction rows.
+    assert pending.kode not in result.text.split('<main',1)[1]
     assert 'Beras 5kg' in result.text and 'Rp70.000' in result.text
     assert 'Lunas' in result.text and 'Rp10.000' in result.text
     assert 'Nama berubah' not in result.text and '/bayar' not in result.text
@@ -916,7 +918,8 @@ def test_member_dashboard_counts_only_own_orders(web,store):
     assert page.status_code==200
     assert 'Ringkasan pesanan saya' in page.text
     assert '<strong class="stat-value">1</strong>' in page.text
-    assert own.kode not in page.text and foreign.kode not in page.text
+    assert own.kode in page.text and foreign.kode not in page.text
+    assert '<article' not in re.search(r'<title>(.*?)</title>',page.text,re.S).group(1)
     section=re.search(r'<section aria-label="Ringkasan pesanan saya"(.*?)</section>',page.text,re.S).group(1)
     counts=dict(re.findall(r'<span class="small-note">([^<]+)</span><strong class="stat-value">(\d+)</strong>',section))
     assert counts=={'Menunggu konfirmasi':'1','Dikonfirmasi':'0','Selesai':'0','Dibatalkan':'0'}
@@ -1010,3 +1013,105 @@ def test_payment_proof_size_and_image_validation():
     from app.payment_proofs import validate_payment_proof,MAX_PROOF_SIZE
     for raw in (b'',b'x'*(MAX_PROOF_SIZE+1),b'<svg></svg>'):
         with pytest.raises(RuleError):validate_payment_proof(raw)
+
+
+def test_notifications_events_atomic_private_and_idempotent(store):
+    from app.models import Notification
+    from app.services import complete_cash_order
+    db,a,m,other,p,second,_=store
+    order=create_order(db,m.id,{str(p.id):1},uuid4().hex);db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification))==2
+    assert not db.scalar(select(Notification).where(Notification.user_id==other.id))
+    create_order(db,m.id,{str(p.id):1},order.token);db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification))==2
+    transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    count=db.scalar(select(func.count()).select_from(Notification))
+    transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification))==count
+    complete_cash_order(db,order.id,a.id,'Cash',70000);db.commit()
+    complete_cash_order(db,order.id,a.id,'Cash',70000);db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification).where(Notification.kind=='payment'))==2
+    assert db.scalar(select(func.count()).select_from(Notification).where(Notification.title=='Pesanan selesai'))==1
+    broken=create_order(db,m.id,{str(p.id):1,str(second.id):1},uuid4().hex);db.commit()
+    second.stok=0;db.commit();count=db.scalar(select(func.count()).select_from(Notification))
+    with pytest.raises(RuleError):transition(db,broken.id,'Dikonfirmasi',a.id)
+    db.rollback()
+    assert db.scalar(select(func.count()).select_from(Notification))==count
+
+
+def test_notifications_api_read_scope_csrf_and_snapshot_all(web,store):
+    from app.models import Notification
+    from app.notifications import send
+    db,a,m,other,p,_,_=store
+    order=create_order(db,m.id,{str(p.id):1},uuid4().hex);db.commit()
+    csrf=signin(web)
+    response=web.get('/api/notifikasi');assert response.headers['cache-control']=='no-store'
+    data=response.json();assert data['user_id']==m.id and data['unread']==1
+    own=data['items'][0]['id'];foreign=db.scalar(select(Notification.id).where(Notification.user_id==a.id))
+    assert web.post(f'/notifikasi/{foreign}/baca',data={'csrf':csrf}).status_code==404
+    assert web.post(f'/notifikasi/{own}/baca',data={'csrf':'wrong'}).status_code==403
+    assert web.post(f'/notifikasi/{own}/baca',data={'csrf':csrf}).status_code==200
+    db.expire_all();read_at=db.get(Notification,own).read_at
+    assert web.post(f'/notifikasi/{own}/baca',data={'csrf':csrf}).status_code==200
+    db.expire_all();assert db.get(Notification,own).read_at==read_at
+    send(db,m.id,'old','order','Old','Old','/pesanan');db.commit()
+    through=web.get('/api/notifikasi').json()['latest_id']
+    send(db,m.id,'new','order','New','New','/pesanan');db.commit()
+    assert web.post('/notifikasi/baca-semua',data={'csrf':csrf,'through':through}).status_code==200
+    assert web.get('/api/notifikasi').json()['unread']==1
+    db.expire_all();assert db.get(Notification,foreign).read_at is None
+    assert 'Notifikasi Anda' in web.get('/anggota/dashboard').text
+    assert 'New' in web.get('/notifikasi').text
+    signin(web,True);assert web.get('/api/notifikasi').json()['unread']==1
+
+
+def test_notification_stock_thresholds_and_rollback(store):
+    from app.models import Notification
+    db,a,_,_,p,_,_=store
+    movement(db,p,-5,a.id,'Tes');db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification))==1
+    movement(db,p,-1,a.id,'Tes');db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification))==1
+    movement(db,p,-4,a.id,'Tes');db.commit()
+    assert db.scalar(select(func.count()).select_from(Notification).where(Notification.title=='Stok habis'))==1
+    movement(db,p,10,a.id,'Restok');db.commit()
+    movement(db,p,-5,a.id,'Tes');db.rollback()
+    assert db.scalar(select(func.count()).select_from(Notification))==2
+
+
+def test_member_payment_submission_private_notifies_without_settling(web,store):
+    from app.models import Notification,PaymentSubmission
+    from PIL import Image
+    db,a,m,other,p,_,_=store
+    own=create_order(db,m.id,{str(p.id):1},uuid4().hex)
+    foreign=create_order(db,other.id,{str(p.id):1},uuid4().hex)
+    transition(db,own.id,'Dikonfirmasi',a.id);transition(db,foreign.id,'Dikonfirmasi',a.id);db.commit()
+    csrf=signin(web);url=f'/pesanan/{own.id}/bukti'
+    raw=BytesIO();Image.new('RGB',(20,20),'white').save(raw,format='PNG');raw=raw.getvalue()
+    assert web.get(f'/pesanan/{foreign.id}/bukti').status_code==404
+    assert web.post(url,data={'csrf':csrf},files={'payment_proof':('bad.jpg',b'invalid','image/jpeg')}).status_code==400
+    result=web.post(url,data={'csrf':csrf},files={'payment_proof':('proof.png',raw,'image/png')});assert result.status_code==200
+    result=web.post(url,data={'csrf':csrf},files={'payment_proof':('proof.png',raw,'image/png')});assert result.status_code==200
+    db.expire_all();sale=db.scalar(select(Sale).where(Sale.order_id==own.id))
+    assert sale.status_pembayaran=='Belum dibayar' and db.get(Order,own.id).status=='Dikonfirmasi'
+    assert db.scalar(select(func.count()).select_from(PaymentSubmission))==1
+    assert db.scalar(select(func.count()).select_from(Notification).where(Notification.kind=='proof'))==1
+    assert web.get(f'/pesanan/{foreign.id}/bukti/gambar').status_code==404
+    assert web.get(url+'/gambar').headers['cache-control']=='no-store'
+    csrf=signin(web,True)
+    assert 'Lihat bukti anggota' in web.get(f'/pesanan/{own.id}/selesaikan').text
+    result=web.post(f'/pesanan/{own.id}/status',data={'csrf':csrf,'status':'Selesai','metode':'Cashless'})
+    assert result.status_code==200
+    db.expire_all();sale=db.get(Sale,sale.id)
+    assert sale.status_pembayaran=='Lunas' and sale.payment_proof and sale.payment_verified_by==a.id
+    assert db.scalar(select(func.count()).select_from(Notification).where(Notification.kind=='payment'))==2
+
+
+def test_notification_migration_additive_idempotent(tmp_path):
+    from app.migrations import migrate_notifications
+    from sqlalchemy import inspect
+    engine=create_engine('sqlite:///'+str(tmp_path/'migration.db'))
+    User.__table__.create(engine);Order.__table__.create(engine)
+    migrate_notifications(engine);migrate_notifications(engine)
+    assert {'notifications','payment_submissions'}.issubset(inspect(engine).get_table_names())
+    engine.dispose()

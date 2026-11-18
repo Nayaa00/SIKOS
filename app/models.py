@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint, LargeBinary
+from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint, LargeBinary, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 from sqlalchemy.dialects.mysql import MEDIUMBLOB
@@ -109,6 +109,27 @@ class StockMovement(Base):
     after: Mapped[int] = mapped_column(Integer)
     alasan: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+class Notification(Base):
+    __tablename__ = 'notifications'
+    __table_args__ = (UniqueConstraint('user_id','event_key',name='uq_notification_event'),Index('ix_notification_inbox','user_id','read_at','id'))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    event_key: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(30))
+    title: Mapped[str] = mapped_column(String(150))
+    message: Mapped[str] = mapped_column(String(500))
+    link: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime,default=utcnow)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime,nullable=True)
+
+class PaymentSubmission(Base):
+    __tablename__ = 'payment_submissions'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'),unique=True)
+    member_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    proof: Mapped[bytes] = mapped_column(LargeBinary().with_variant(MEDIUMBLOB(),'mysql'),deferred=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime,default=utcnow)
 
 # Explicit transactional engine for every newly created MySQL table.
 for _table in Base.metadata.tables.values():

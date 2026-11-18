@@ -248,3 +248,45 @@ Layout utama dan seluruh komponen halaman memakai Tailwind build lokal. CSS lama
 hanya diimpor pada layer prioritas rendah untuk layout widget khusus. Bootstrap sudah dilepas. Lihat docs/TAILWIND.md untuk setup
 Windows CMD, npm lokal, build/watch dan urutan migrasi. Jangan mengedit tailwind.css hasil
 build secara manual; ubah assets/tailwind.css atau utility class template, lalu build ulang.
+
+## Notifikasi dalam aplikasi
+
+Jalankan `venv\Scripts\python.exe -m app.cli migrate-notifications` pada instalasi lama
+sebelum menjalankan versi ini. Migrasi idempoten hanya menambah tabel notifications dan
+payment_submissions; init-db juga membuat kedua tabel untuk instalasi baru. Tidak melakukan
+backfill notifikasi untuk pesanan/stok lama.
+
+Lonceng navbar tersedia bagi admin dan anggota. Badge menunjukkan jumlah belum dibaca;
+klik lonceng untuk lima kabar terbaru dan tautan Riwayat. Halaman /notifikasi memuat riwayat
+20 per halaman, tanda dibaca per item, dan Tandai semua dibaca. Membuka tautan notifikasi
+menandainya dibaca. Dashboard masing-masing akun juga menampilkan lima kabar terbaru.
+
+Browser mengambil feed /api/notifikasi setiap 15 detik selama tab terlihat, dan memperbarui
+badge/panel/dashboard tanpa refresh halaman. Halaman pertama riwayat ikut diperbarui;
+halaman riwayat lama dipertahankan agar pagination tidak meloncat. Tab tersembunyi tidak
+melakukan fetch berkala. Jika koneksi gagal, sistem mencoba kembali; pergantian akun/sesi
+menghentikan feed dan membersihkan daftar. Ini notifikasi dalam aplikasi, bukan push OS/email.
+
+Penerima:
+- Admin aktif: pesanan baru, bukti pembayaran dari anggota, pembayaran dicatat lunas,
+  pesanan dibatalkan, dan stok melintasi batas menipis (5 unit) atau mencapai 0.
+- Anggota: pesanan sendiri dibuat/dikonfirmasi/selesai/dibatalkan dan pembayaran lunas.
+
+Notifikasi dibuat pada transaksi SQL yang sama dengan kejadian bisnis. Kegagalan/rollback
+membatalkannya juga; kunci unik penerima+kejadian dan lock pesanan mencegah duplikasi saat
+konfirmasi/penyelesaian dicoba ulang. Stok 5→4 tidak memberi peringatan menipis berulang;
+4→0 memberi peringatan habis. Restok di atas 5 mengizinkan peringatan baru ketika menipis
+lagi. Stok awal produk baru yang <=5 juga diberitahukan. Tidak memindai/mengubah data lama.
+
+Anggota dapat memakai Pesanan Saya → Kirim / lihat bukti pembayaran pada pesanan
+Dikonfirmasi. Gambar JPG/PNG/WebP maksimal 5 MB/20 megapiksel divalidasi dan disimpan sebagai
+JPEG tanpa metadata dalam database, satu pengajuan per pesanan. Admin mendapat notifikasi,
+melihat gambar melalui endpoint terlindungi dan dapat memakai bukti anggota pada formulir
+Selesaikan → Cashless tanpa mengunggah ulang. Bukti anggota tidak otomatis membuktikan
+pembayaran: admin tetap memeriksa pembayaran masuk sebelum menyelesaikan. Bukti resmi Sale
+serta admin pemeriksa dicatat saat Cashless diselesaikan; alur Cash dan kamera admin tetap ada.
+
+Feed, halaman riwayat, mark-read dan gambar bukti selalu dibatasi akun login. Anggota tidak
+bisa membaca/menandai notifikasi atau melihat bukti anggota lain. Admin mendapat salinan
+notifikasi operasional masing-masing: menandai milik satu admin tidak mengubah milik admin
+lain. Request perubahan memakai POST+CSRF. Tidak ada gateway atau fitur QR baru.

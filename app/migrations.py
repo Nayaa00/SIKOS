@@ -44,3 +44,10 @@ def migrate_sale_payments(engine):
                 conn.execute(
                     text(f'ALTER TABLE sales ADD COLUMN {name} {definition}')
                 )
+
+
+def migrate_notifications(engine):
+    from .models import Notification, PaymentSubmission
+    # Add only the two feature tables; never modify inventory or existing transactions.
+    Notification.__table__.create(engine,checkfirst=True)
+    PaymentSubmission.__table__.create(engine,checkfirst=True)

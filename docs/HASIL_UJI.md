@@ -277,3 +277,35 @@ layout widget, desain baru di layer components/utilities. Backend, stok, pembaya
 schema database tidak diubah oleh migrasi tampilan ini. Build berhasil; 72 tes lulus,
 termasuk 8 MariaDB XAMPP (56.58 detik). Lihat docs/TAILWIND.md untuk setup, batas verifikasi
 visual dan peringatan dependency build. Tidak ada push pada tahap ini.
+
+## Notifikasi admin dan anggota — 18 November 2026
+
+78 tes lulus (69 SQLite/HTTP + 9 MariaDB XAMPP), 1 warning deprecation, 53.53 detik.
+MySQL 8 belum diuji. Tes baru meliputi privasi feed/mark-read/gambar bukti, CSRF, pembacaan
+idempoten, mark-all berbatas snapshot (notifikasi yang baru datang tidak ikut terbaca),
+rollback bisnis, stok menipis/habis, notifikasi konfirmasi ganda pada konkurensi MariaDB,
+serta bukti anggota tidak melunaskan pembayaran dan bisa dipakai ulang oleh admin.
+
+Pemeriksaan JavaScript dengan Node: polling memperbarui badge/list, pause/resume tab,
+render teks tanpa HTML injection, dan pembersihan daftar ketika akun berubah. Syntax JS
+lulus dan Tailwind berhasil dibangun. Tes regresi riwayat transaksi tetap memeriksa bahwa
+pesanan menunggu tidak masuk catatan transaksi, sementara bell boleh menampilkan notifikasi
+pesanan menunggu milik akun sendiri. Dashboard kini diharapkan menampilkan notifikasi sendiri.
+
+Smoke test browser sesi admin: lonceng buka/tutup, empty state, tautan Riwayat dan halaman
+notifikasi tampil sesuai tema. Endpoint polling di server lokal mengembalikan 200. Tidak
+membuat pesanan, pembayaran atau notifikasi dummy di database operasional. Alur anggota,
+pengajuan bukti dan mark-read diuji HTTP; belum smoke test visual dengan sesi anggota.
+Migrasi dua tabel sudah dijalankan pada database SIKOS lokal. Tidak mengubah database lain.
+
+## Integrasi terpilih ke luthfi — 18 November 2026
+
+Branch luthfi sebelumnya berada di 005bcfe. Fondasi SIKOS terintegrasi dan Tailwind lokal
+(commit 30029a7) digabungkan sebagai prasyarat. Di atas fondasi tersebut hanya ditambahkan
+notifikasi, pengajuan bukti anggota yang memicu notifikasi, dan perapian kartu produk,
+katalog/Produk Pilihan serta padding kartu transaksi anggota. Redesign workspace/sidebar,
+susunan dashboard admin terbaru dan perubahan grafik tidak disertakan pada integrasi ini.
+
+Worktree integrasi: build Tailwind berhasil, syntax JS lulus, 78 tes lulus dalam 62.19 detik
+(69 SQLite/HTTP + 9 MariaDB XAMPP, 1 warning deprecation). MySQL 8 belum diuji. Tidak mengubah
+.env atau database operasional saat pengujian; database nyata memakai URL khusus _test.

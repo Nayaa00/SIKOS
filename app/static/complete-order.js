@@ -59,8 +59,8 @@ if (form) {
     proofInput.required = false;
     if (cash) stopCamera();
     message.textContent = !cash ? '' : (amount.value && !enough ? 'Uang pembayaran kurang atau nominal tidak valid.' : 'Kembalian dihitung otomatis. Pastikan uang sudah diterima.');
-    button.disabled = cash ? !enough : !(proofInput.files.length && proofInput.validity.valid);
+    button.disabled = cash ? !enough : !((proofInput.files.length && proofInput.validity.valid) || (form.dataset.submittedProof === '1' && !proofInput.files.length));
   }
-  form.addEventListener('submit', event => { if (method.value === 'Cashless' && (!proofInput.files.length || !proofInput.validity.valid)) { event.preventDefault(); status.textContent = 'Pilih bukti pembayaran yang valid terlebih dahulu.'; } });
+  form.addEventListener('submit', event => { if (method.value === 'Cashless' && ((!proofInput.files.length && form.dataset.submittedProof !== '1') || !proofInput.validity.valid)) { event.preventDefault(); status.textContent = 'Pilih bukti pembayaran yang valid terlebih dahulu.'; } });
   method.addEventListener('change', update); amount.addEventListener('input', update); update();
 }

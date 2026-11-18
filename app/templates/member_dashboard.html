@@ -9,8 +9,24 @@
 <section aria-label="Ringkasan pesanan saya" class="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:[&_strong]:block tw:[&_strong]:text-3xl tw:[&_strong]:text-emerald-950 tw:[&_.small-note]:text-xs">
 {% for state in ['Menunggu konfirmasi','Dikonfirmasi','Selesai','Dibatalkan'] %}<a href="/pesanan?status={{ state|urlencode }}" class="tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:p-5 tw:text-slate-700 tw:no-underline tw:transition tw:hover:border-emerald-400 tw:hover:shadow-md"><span class="small-note">{{ state }}</span><strong class="stat-value">{{ order_counts.get(state,0) }}</strong><span class="small-note">Lihat pesanan →</span></a>{% endfor %}</section>
 <section class="tw:mb-5 tw:mt-10 tw:flex tw:flex-wrap tw:items-end tw:justify-between tw:gap-4"><div><h2 class="tw:mb-1 tw:text-xl tw:font-bold">Produk Pilihan</h2><p class="tw:m-0 tw:text-sm tw:text-slate-500">Lengkapi kebutuhan harian Anda.</p></div><a href="/katalog" class="tw:text-sm tw:font-semibold tw:text-emerald-800 tw:no-underline tw:hover:underline">Lihat semua produk →</a></section>
-<section class="tw:grid tw:grid-cols-1 tw:gap-5 tw:sm:grid-cols-2 tw:xl:grid-cols-4">
-{% for product in featured_products %}<article class="tw:overflow-hidden tw:rounded-2xl tw:border tw:border-solid tw:border-stone-200 tw:bg-white tw:transition tw:hover:shadow-lg"><div class="tw:relative tw:flex tw:h-48 tw:items-center tw:justify-center tw:bg-stone-100 tw:p-5"><img class="tw:h-full tw:w-full tw:object-contain" src="{{ product|product_image }}" data-fallback="{{ product|default_product_image }}" alt="{{ product.nama }}" loading="lazy"><span class="tw:absolute tw:left-3 tw:top-3 tw:rounded-full tw:bg-white tw:px-3 tw:py-1 tw:text-[10px] tw:font-semibold tw:text-emerald-900">{{ product.category.nama }}</span></div><div class="tw:p-5"><p class="tw:mb-1 tw:text-xs tw:text-slate-400">{{ product.label }}</p><h3 class="tw:mb-3 tw:text-base tw:font-semibold">{{ product.nama }}</h3><p class="tw:mb-3 tw:text-xl tw:font-bold tw:text-emerald-800">{{ product.harga|rupiah }} <span class="tw:text-xs tw:font-normal tw:text-slate-400">/ {{ product.satuan }}</span></p><p class="tw:mb-4 tw:text-xs tw:text-slate-500">Stok tersedia {{ product.stok }} {{ product.satuan }}</p><a href="/katalog" class="tw:block tw:rounded-lg tw:bg-emerald-50 tw:px-4 tw:py-2 tw:text-center tw:text-sm tw:font-semibold tw:text-emerald-800 tw:no-underline tw:hover:bg-emerald-100">Lihat katalog</a></div></article>
-{% else %}<div class="tw:col-span-full tw:rounded-2xl tw:border tw:border-dashed tw:border-stone-300 tw:bg-white tw:p-10 tw:text-center tw:text-slate-500">Belum ada produk tersedia.</div>{% endfor %}</section>
+<section class="catalog-grid member-featured-products" aria-label="Produk pilihan koperasi">
+{% for product in featured_products %}
+<article class="catalog-card">
+  <div class="catalog-product-image">
+    <img src="{{ product|product_image }}" data-fallback="{{ product|default_product_image }}" alt="Foto {{ product.nama }}" loading="lazy" width="640" height="480">
+    <span class="catalog-category-badge">{{ product.category.nama }}</span>
+  </div>
+  <div class="catalog-product-body">
+    <div class="catalog-product-code">{{ product.kode }}</div>
+    <h3>{{ product.nama }}</h3>
+    {% if product.label %}<span class="catalog-product-label">{{ product.label }}</span>{% endif %}
+    <p class="catalog-product-description">{{ product.deskripsi or 'Produk kebutuhan koperasi' }}</p>
+    <div class="catalog-product-price">{{ product.harga|rupiah }} <small>/ {{ product.satuan }}</small></div>
+    <div class="catalog-stock-info"><span>Stok tersedia</span><strong class="catalog-stock-available">{{ product.stok }} {{ product.satuan }}</strong></div>
+    <div class="featured-card-action"><a href="/katalog" class="btn">Lihat katalog →</a></div>
+  </div>
+</article>
+{% else %}<div class="tw:col-span-full tw:rounded-2xl tw:border tw:border-dashed tw:border-stone-300 tw:bg-white tw:p-10 tw:text-center tw:text-slate-500">Belum ada produk tersedia.</div>{% endfor %}
+</section>
 <p class="tw:mt-5 tw:text-xs tw:text-slate-400">Foto ilustrasi produk. <a href="/static/products/credits.html">Sumber dan lisensi foto</a></p>
-{% endblock %}
+{% include '_notification_dashboard.html' %}{% endblock %}

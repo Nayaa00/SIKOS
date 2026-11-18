@@ -179,3 +179,12 @@ dengan total, kembalian Rp0, dan waktu pembayaran otomatis. Form pembayaran manu
 Transaksi dihapus; halaman Transaksi Saya mengikuti hasil yang sama. Nominal pembayaran
 lama yang sudah tercatat tidak ditimpa. Untuk pesanan lama yang Selesai namun belum punya
 pembayaran, jalankan `python -m app.cli sync-completed-payments`. Stok tidak berubah saat Selesaikan.
+
+## Notifikasi per akun
+
+Notifikasi persisten per penerima untuk pesanan, pembayaran dan peringatan stok; lonceng,
+riwayat, mark-read/mark-all, serta panel dashboard admin/anggota tersedia. Polling 15 detik
+memperbarui UI tanpa refresh, dengan autentikasi, kepemilikan dan CSRF. Bukti pembayaran
+anggota dapat diunggah sekali untuk pesanan Dikonfirmasi dan memicu notifikasi admin;
+unggahan tidak membuat lunas. Migrasi additive: migrate-notifications. Notifikasi transaksi
+lama tidak dibuat ulang. Rincian perilaku dan pengujian ada di README/HASIL_UJI.

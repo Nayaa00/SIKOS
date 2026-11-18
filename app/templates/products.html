@@ -13,7 +13,7 @@
   <span class="muted">{{ products|length }}{% if query or category %} dari {{ total_count }}{% endif %} produk <span aria-hidden="true">·</span> {{ products|selectattr('active')|list|length }} aktif</span>
   <div><a href="/impor" class="btn btn-light">Impor Excel</a> <a href="/stok" class="btn btn-light">Catat stok</a></div>
 </div>
-<div class="inventory-grid">
+<div class="inventory-grid inventory-management">
 {% for p in products %}
 <article class="inventory-card{% if not p.active %} is-archived{% endif %}" aria-label="{{ p.nama }}">
   <div class="inventory-photo">

@@ -12,11 +12,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy import select, func, or_
-from sqlalchemy.orm import Session, selectinload, joinedload
+from sqlalchemy import select, func, or_, update
+from sqlalchemy.orm import Session, selectinload, joinedload, object_session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
-from .models import User, Category, Product, Order, Sale, StockMovement
+from .models import User, Category, Product, Order, Sale, StockMovement, Notification, PaymentSubmission, utcnow
 from .security import hash_password, verify_password, csrf_token, check_csrf
 from .services import RuleError, integer, text, code, movement, create_order, transition, record_payment, cancel_member_order, complete_cash_order, complete_cashless_order
 from .product_images import product_image, default_product_image, valid_product_image
@@ -42,6 +42,13 @@ templates.env.filters['default_product_image']=default_product_image
 
 def page(request,name,**context):
     context.update(csrf=csrf_token(request),notice=request.session.pop('notice',None),category_choices=CATEGORIES)
+    user=context.get('user')
+    if user is not None and object_session(user) is not None:
+        from .notifications import inbox, unread
+        db=object_session(user)
+        with db.no_autoflush:
+            context.update(notification_unread=unread(db,user.id),notification_recent=inbox(db,user.id))
+
     return templates.TemplateResponse(request=request,name=name,context=context)
 
 def go(url,request=None,message=None):
@@ -612,13 +619,82 @@ def member_sales(request:Request,user:User=Depends(buyer),db:Session=Depends(get
     rows=db.execute(statement.options(selectinload(Order.lines))).all()
     return page(request,'member_sales.html',user=user,rows=rows,window=window)
 
+def notification_json(db,user,offset=0):
+    from .notifications import inbox, unread
+    rows=inbox(db,user.id,20,offset)
+    return dict(user_id=user.id,unread=unread(db,user.id),latest_id=db.scalar(select(func.max(Notification.id)).where(Notification.user_id==user.id)) or 0,
+                items=[dict(id=n.id,title=n.title,message=n.message,link=n.link,kind=n.kind,created_at=wib(n.created_at),read=n.read_at is not None) for n in rows])
+
+@app.get('/api/notifikasi')
+def notification_feed(user:User=Depends(current),db:Session=Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(notification_json(db,user),headers={'Cache-Control':'no-store'})
+
+@app.get('/notifikasi')
+def notification_history(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+    statement=select(Notification).where(Notification.user_id==user.id).order_by(Notification.id.desc())
+    statement,window=history_window(request,db,statement)
+    return page(request,'notifications.html',user=user,notifications=db.scalars(statement).all(),window=window)
+
+@app.post('/notifikasi/{notification_id}/baca')
+async def notification_read(notification_id:int,request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+    form=await request.form();check_csrf(request,form)
+    notification=db.scalar(select(Notification).where(Notification.id==notification_id,Notification.user_id==user.id).with_for_update())
+    if notification is None:raise HTTPException(404,'Notifikasi tidak ditemukan.')
+    if notification.read_at is None:notification.read_at=utcnow()
+    db.commit()
+    return {'ok':True}
+
+@app.post('/notifikasi/baca-semua')
+async def notifications_read_all(request:Request,user:User=Depends(current),db:Session=Depends(get_db)):
+    form=await request.form();check_csrf(request,form)
+    through=integer(form.get('through'),'Batas notifikasi',True)
+    db.execute(update(Notification).where(Notification.user_id==user.id,Notification.id<=through,Notification.read_at.is_(None)).values(read_at=utcnow()))
+    db.commit();return {'ok':True}
+
+@app.get('/pesanan/{order_id}/bukti')
+def member_proof_form(order_id:int,request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
+    order=db.scalar(select(Order).where(Order.id==order_id,Order.member_id==user.id))
+    if order is None:raise HTTPException(404,'Pesanan tidak ditemukan.')
+    if order.status!='Dikonfirmasi':raise HTTPException(409,'Bukti hanya dapat diunggah untuk pesanan Dikonfirmasi.')
+    submission=db.scalar(select(PaymentSubmission).where(PaymentSubmission.order_id==order.id))
+    return page(request,'member_proof.html',user=user,order=order,submission=submission)
+
+@app.post('/pesanan/{order_id}/bukti')
+async def member_proof_upload(order_id:int,request:Request,user:User=Depends(buyer),db:Session=Depends(get_db)):
+    from .payment_proofs import validate_payment_proof,MAX_PROOF_SIZE
+    from .notifications import admins
+    form=await request.form();check_csrf(request,form)
+    upload=form.get('payment_proof')
+    if not upload or not hasattr(upload,'read'):raise RuleError('Pilih bukti pembayaran terlebih dahulu.')
+    proof=validate_payment_proof(await upload.read(MAX_PROOF_SIZE+1))
+    order=db.scalar(select(Order).where(Order.id==order_id,Order.member_id==user.id).with_for_update().execution_options(populate_existing=True))
+    if order is None:raise HTTPException(404,'Pesanan tidak ditemukan.')
+    sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
+    if order.status!='Dikonfirmasi' or sale is None or not sale.valid or sale.status_pembayaran=='Lunas':
+        raise HTTPException(409,'Pesanan ini tidak menerima bukti pembayaran.')
+    if db.scalar(select(PaymentSubmission.id).where(PaymentSubmission.order_id==order.id)):
+        return go(f'/pesanan/{order.id}/bukti',request,'Bukti sudah dikirim dan menunggu pemeriksaan admin.')
+    db.add(PaymentSubmission(order_id=order.id,member_id=user.id,proof=proof))
+    admins(db,f'order:{order.id}:proof','proof','Bukti pembayaran baru',f'{order.kode}: anggota mengunggah bukti pembayaran.',f'/pesanan/{order.id}/selesaikan')
+    db.commit()
+    return go(f'/pesanan/{order.id}/bukti',request,'Bukti berhasil dikirim. Pembayaran menunggu pemeriksaan admin.')
+
+@app.get('/pesanan/{order_id}/bukti/gambar')
+def submitted_proof_image(order_id:int,user:User=Depends(current),db:Session=Depends(get_db)):
+    statement=select(PaymentSubmission.proof).join(Order,Order.id==PaymentSubmission.order_id).where(Order.id==order_id)
+    if user.role!='admin':statement=statement.where(Order.member_id==user.id)
+    proof=db.scalar(statement)
+    if not proof:raise HTTPException(404,'Bukti pembayaran tidak ditemukan.')
+    return Response(proof,media_type='image/jpeg',headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})
+
 @app.get('/pesanan/{order_id}/selesaikan')
 def completion_page(order_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     order=db.get(Order,order_id)
     if order is None:raise HTTPException(404,'Pesanan tidak ditemukan.')
     if order.status!='Dikonfirmasi':return go('/pesanan',request,'Pesanan ini tidak menunggu penyelesaian.')
     sale=db.scalar(select(Sale).where(Sale.order_id==order.id))
-    return page(request,'complete_order.html',user=user,order=order,amount=sale.jumlah_bayar if sale and sale.status_pembayaran=='Lunas' else '',method='Cash')
+    return page(request,'complete_order.html',user=user,order=order,amount=sale.jumlah_bayar if sale and sale.status_pembayaran=='Lunas' else '',method='Cash',submission=db.scalar(select(PaymentSubmission).where(PaymentSubmission.order_id==order.id)))
 
 @app.post('/pesanan/{order_id}/status')
 async def order_status(order_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -629,15 +705,18 @@ async def order_status(order_id:int,request:Request,user:User=Depends(admin),db:
             if form.get('metode')=='Cashless':
                 from .payment_proofs import validate_payment_proof, MAX_PROOF_SIZE
                 upload=form.get('payment_proof')
-                if not upload or not hasattr(upload,'read'):raise RuleError('Unggah bukti pembayaran terlebih dahulu.')
-                proof=validate_payment_proof(await upload.read(MAX_PROOF_SIZE+1))
+                if upload and hasattr(upload,'read') and upload.filename:
+                    proof=validate_payment_proof(await upload.read(MAX_PROOF_SIZE+1))
+                else:
+                    proof=db.scalar(select(PaymentSubmission.proof).where(PaymentSubmission.order_id==order_id))
+                    if not proof:raise RuleError('Unggah bukti pembayaran terlebih dahulu.')
                 complete_cashless_order(db,order_id,user.id,proof,True)
             else:complete_cash_order(db,order_id,user.id,str(form.get('metode','')),form.get('jumlah_bayar'))
         except RuleError as exc:
             db.rollback()
             order=db.get(Order,order_id)
             if order is None:raise HTTPException(404,'Pesanan tidak ditemukan.')
-            response=page(request,'complete_order.html',user=user,order=order,amount=str(form.get('jumlah_bayar','')),method=str(form.get('metode','Cash')),error=str(exc))
+            response=page(request,'complete_order.html',user=user,order=order,amount=str(form.get('jumlah_bayar','')),method=str(form.get('metode','Cash')),error=str(exc),submission=db.scalar(select(PaymentSubmission).where(PaymentSubmission.order_id==order_id)))
             response.status_code=400
             return response
     else:transition(db,order_id,target,user.id)

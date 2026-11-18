@@ -105,3 +105,34 @@ stateDiagram-v2
     Selesai --> [*]
     Dibatalkan --> [*]
 ```
+
+## Penambahan notifikasi dan pengajuan bukti
+
+```mermaid
+erDiagram
+    USERS ||--o{ NOTIFICATIONS : menerima
+    USERS ||--o{ PAYMENT_SUBMISSIONS : mengunggah
+    ORDERS ||--o| PAYMENT_SUBMISSIONS : memiliki
+    NOTIFICATIONS {
+        int id PK
+        int user_id FK
+        string event_key "unik bersama user_id"
+        string kind
+        string title
+        string message
+        string link
+        datetime created_at
+        datetime read_at "nullable"
+    }
+    PAYMENT_SUBMISSIONS {
+        int id PK
+        int order_id FK,UK
+        int member_id FK
+        mediumblob proof "deferred, JPEG tervalidasi"
+        datetime created_at
+    }
+```
+
+Indeks inbox: user_id/read_at/id. Notifikasi disimpan per penerima dan dibuat atomik
+bersama transaksi bisnis. Pengajuan bukti anggota terpisah dari bukti Sale yang sudah
+terverifikasi; unggah anggota tidak mengubah status lunas atau empat status pesanan.

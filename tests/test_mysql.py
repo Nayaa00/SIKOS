@@ -11,7 +11,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
-from app.models import Category, Order, OrderLine, Product, Sale, StockMovement, User
+from app.models import Category, Order, OrderLine, Product, Sale, StockMovement, User, Notification, PaymentSubmission
 from app.services import RuleError, create_order, movement, transition
 from app.security import hash_password
 
@@ -68,6 +68,8 @@ def mysql_store():
     finally:
         with factory() as db:
             orders = select(Order.id).where(Order.member_id == ids[1])
+            db.execute(delete(Notification).where(Notification.user_id.in_(ids[:2])))
+            db.execute(delete(PaymentSubmission).where(PaymentSubmission.member_id.in_(ids[:2])))
             db.execute(delete(StockMovement).where(StockMovement.product_id.in_(ids[2:])))
             db.execute(delete(Sale).where(Sale.order_id.in_(orders)))
             db.execute(delete(OrderLine).where(OrderLine.order_id.in_(orders)))
@@ -296,3 +298,17 @@ def test_mysql_cashless_evidence_persisted_atomically(mysql_store):
         assert db.get(Order,oid).status=='Selesai' and db.get(Product,pid).stok==0
         complete_cashless_order(db,oid,admin,proof,True);db.commit()
         assert db.scalar(select(func.count()).select_from(Sale).where(Sale.order_id==oid))==1
+
+
+def test_mysql_notification_confirmation_once_and_transaction_rollback(mysql_store):
+    factory,ids=mysql_store
+    with factory() as db:
+        order=create_order(db,ids[1],{str(ids[2]):1},uuid4().hex);db.commit();oid=order.id
+    results=parallel_transitions(factory,[oid,oid],'Dikonfirmasi',ids[0])
+    with factory() as db:
+        assert db.scalar(select(func.count()).select_from(Notification).where(Notification.user_id==ids[1],Notification.event_key==f'order:{oid}:Dikonfirmasi'))==1
+        assert db.scalar(select(func.count()).select_from(Notification).where(Notification.event_key==f'order:{oid}:created'))==2
+        transition(db,oid,'Dibatalkan',ids[0]);db.rollback()
+    with factory() as db:
+        assert db.get(Order,oid).status=='Dikonfirmasi'
+        assert db.scalar(select(func.count()).select_from(Notification).where(Notification.event_key==f'order:{oid}:Dibatalkan'))==0

@@ -5,14 +5,14 @@ from .db import Base,engine,SessionLocal
 from .models import User,Category,Product
 from .security import hash_password
 from .services import movement, sync_completed_payments
-from .migrations import migrate_product_labels, migrate_sale_payments
+from .migrations import migrate_product_labels, migrate_sale_payments, migrate_notifications
 from .code_migration import migrate_product_codes
 from .product_codes import next_product_code
 from sqlalchemy import or_
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('command',choices=['init-db','migrate-labels','migrate-codes','migrate-payments','sync-completed-payments','create-admin','seed-demo'])
+    parser.add_argument('command',choices=['init-db','migrate-notifications','migrate-labels','migrate-codes','migrate-payments','sync-completed-payments','create-admin','seed-demo'])
     args=parser.parse_args()
     if args.command=='init-db':
         Base.metadata.create_all(engine)
@@ -20,6 +20,10 @@ def main():
         migrate_product_codes(engine)
         migrate_sale_payments(engine)
         print('Tabel SIKOS siap.')
+        return
+    if args.command=='migrate-notifications':
+        migrate_notifications(engine)
+        print('Tabel notifikasi dan unggahan bukti siap; data lama tetap.')
         return
     if args.command=='migrate-labels':
         migrate_product_labels(engine)
