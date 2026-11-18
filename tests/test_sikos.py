@@ -141,8 +141,8 @@ def excel(rows):
 
 def test_import_partial_valid_duplicate_invalid(store):
     db,a,*_=store
-    row={'kode':'N01','nama':'Minyak','kategori':'Minyak','harga':18000,'stok':5,'satuan':'botol'}
-    raw=excel([row,row,{**row,'kode':'N02','harga':-1},{**row,'kode':'B01'}])
+    row={'kode':'N01','nama':'Minyak','kategori':'Minyak','hpp':15000,'harga':18000,'stok':5,'satuan':'botol'}
+    raw=excel([row,row,{**row,'kode':'N02','hpp':-1},{**row,'kode':'B01'}])
     result=save_rows(db,load_rows(raw),a.id);db.commit()
     assert result['success']==1 and result['failed']==3
     assert len(result['errors'])==3
@@ -295,7 +295,7 @@ def test_admin_crud_http(web,store):
     db=store[0];store[4].label='Gula';category=Category(nama='Bahan pokok');db.add(category);db.commit()
     response=web.post('/kategori/simpan',data={'csrf':csrf,'id':category.id,'active':'on'})
     assert response.status_code==200
-    response=web.post('/produk/simpan',data={'csrf':csrf,'kode':'G001','nama':'Gula 1kg','label':'Gula','category_id':category.id,'harga':16000,'stok':7,'satuan':'pak','active':'on'})
+    response=web.post('/produk/simpan',data={'csrf':csrf,'kode':'G001','nama':'Gula 1kg','label':'Gula','category_id':category.id,'hpp':14000,'harga':16000,'stok':7,'satuan':'pak','active':'on'})
     assert response.status_code==200 and 'BPK001' in response.text
     product=db.scalar(select(Product).where(Product.nama=='Gula 1kg'))
     response=web.post('/stok',data={'csrf':csrf,'product_id':product.id,'qty':2,'direction':'keluar','alasan':'rusak'})
@@ -391,7 +391,7 @@ def test_catalog_search_name_or_label_only(web,store):
 
 def test_import_label_and_broad_category(store):
     db,admin,*_=store
-    row={'kode':'SAB01','nama':'Sabun mandi','label':'Sabun','kategori':'Perawatan','harga':5000,'stok':8,'satuan':'batang'}
+    row={'kode':'SAB01','nama':'Sabun mandi','label':'Sabun','kategori':'Perawatan','hpp':4000,'harga':5000,'stok':8,'satuan':'batang'}
     result=save_rows(db,load_rows(excel([row,{**row,'kode':'BAD01','kategori':'Tidak dikenal'}])),admin.id)
     db.commit()
     assert result['success']==1 and result['failed']==1
@@ -514,7 +514,7 @@ def test_product_code_preview_and_server_authority(web,store):
     preview=web.get(f'/produk/kode-berikutnya?category_id={category.id}')
     assert preview.json()['kode']=='MNM001'
     assert web.get(f'/produk/kode-berikutnya?category_id={category.id}').json()['kode']=='MNM001'
-    form={'csrf':csrf,'nama':'Teh botol','label':'Teh','category_id':category.id,'harga':5000,'stok':4,'satuan':'botol','active':'on','kode':'HACK999'}
+    form={'csrf':csrf,'nama':'Teh botol','label':'Teh','category_id':category.id,'hpp':4000,'harga':5000,'stok':4,'satuan':'botol','active':'on','kode':'HACK999'}
     assert web.post('/produk/simpan',data=form).status_code==200
     product=db.scalar(select(Product).where(Product.nama=='Teh botol'))
     assert product.kode=='MNM001'
@@ -550,7 +550,7 @@ def test_code_migration_preserves_snapshot_and_reimport_is_rejected(store):
 def test_automatic_import_codes_keep_excel_alias_and_rollback_counter(store):
     from app.product_codes import next_product_code
     db,admin,*_=store
-    row={'kode':'EX001','nama':'Air mineral','label':'Air','kategori':'Minuman','harga':3000,'stok':2,'satuan':'botol'}
+    row={'kode':'EX001','nama':'Air mineral','label':'Air','kategori':'Minuman','hpp':2500,'harga':3000,'stok':2,'satuan':'botol'}
     result=save_rows(db,load_rows(excel([row])),admin.id);db.commit()
     product=db.scalar(select(Product).where(Product.source_code=='EX001'))
     assert result['success']==1 and product.kode=='MNM001'
@@ -1114,4 +1114,153 @@ def test_notification_migration_additive_idempotent(tmp_path):
     User.__table__.create(engine);Order.__table__.create(engine)
     migrate_notifications(engine);migrate_notifications(engine)
     assert {'notifications','payment_submissions'}.issubset(inspect(engine).get_table_names())
+    engine.dispose()
+
+
+def test_hpp_snapshot_confirmation_edit_and_cancellation(store):
+    db,a,m,_,p,_,_=store
+    p.hpp=40000;db.commit()
+    order=create_order(db,m.id,{str(p.id):2},uuid4().hex);db.commit()
+    assert order.lines[0].hpp is None
+    p.hpp=45000;db.commit()
+    transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    assert order.lines[0].hpp==45000
+    p.hpp=60000;p.harga=90000;db.commit()
+    transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    day=order.confirmed_at.replace(tzinfo=__import__('datetime').timezone.utc).astimezone(__import__('zoneinfo').ZoneInfo('Asia/Jakarta')).date().isoformat()
+    result=analyze(db,'harian',day)
+    assert result['total']==140000 and result['total_hpp']==90000 and result['gross_profit']==50000
+    assert result['rows'][0]['hpp']==45000 and result['rows'][0]['laba_kotor']==50000
+    assert result['cost_complete'] and result['missing_cost_units']==0
+    transition(db,order.id,'Dibatalkan',a.id);db.commit()
+    result=analyze(db,'harian',day)
+    assert result['total']==0 and result['total_hpp']==0 and result['gross_profit']==0
+    assert order.lines[0].hpp==45000
+
+
+def test_hpp_unknown_zero_and_loss_are_distinguished(store):
+    from app.models import utcnow
+    db,a,m,_,p,second,_=store
+    p.hpp=80000;second.hpp=None;db.commit()
+    order=create_order(db,m.id,{str(p.id):1,str(second.id):1},uuid4().hex)
+    transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    result=analyze(db,'tahunan',utcnow().date().isoformat())
+    assert not result['cost_complete'] and result['missing_cost_units']==1
+    assert result['total']==210000 and result['total_hpp'] is None and result['gross_profit'] is None
+    assert result['known_cost']==80000 and result['known_profit']==-10000
+    second.hpp=0;db.commit()
+    # Filling a product cost today cannot repair an old unknown snapshot.
+    assert not analyze(db,'tahunan',utcnow().date().isoformat())['cost_complete']
+    transition(db,order.id,'Dibatalkan',a.id);db.commit()
+    zero=create_order(db,m.id,{str(second.id):1},uuid4().hex)
+    transition(db,zero.id,'Dikonfirmasi',a.id);db.commit()
+    result=analyze(db,'tahunan',utcnow().date().isoformat())
+    assert result['cost_complete'] and result['total_hpp']==0 and result['gross_profit']==140000
+
+
+def test_hpp_admin_edit_validation_privacy_and_export(web,store):
+    db,a,m,_,p,_,_=store
+    p.label='Beras';p.hpp=43210;db.commit()
+    signin(web);assert web.get(f'/produk/{p.id}/edit').status_code==403
+    assert 'HPP per unit' not in web.get('/katalog').text
+    assert web.get('/laporan').status_code==403
+    csrf=signin(web,True)
+    payload={'csrf':csrf,'id':p.id,'category_id':p.category_id,'nama':p.nama,'label':'Beras','harga':70000,'satuan':'pak','active':'on'}
+    assert web.post('/produk/simpan',data={**payload,'hpp':'-1'}).status_code==400
+    db.expire_all();assert db.get(Product,p.id).hpp==43210
+    assert web.post('/produk/simpan',data={**payload,'hpp':'0'}).status_code==400
+    assert web.post('/produk/simpan',data={**payload,'hpp':'60000'}).status_code==200
+    db.expire_all();assert db.get(Product,p.id).hpp==60000
+    assert web.post('/produk/simpan',data=payload).status_code==200
+    db.expire_all();assert db.get(Product,p.id).hpp==60000
+    order=create_order(db,m.id,{str(p.id):1},uuid4().hex);transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    # Actual test clock may vary; choose the real order year for the snapshot export.
+    response=web.get('/laporan',params={'periode':'tahunan','tanggal':order.confirmed_at.date().isoformat(),'export':'xlsx'})
+    from openpyxl import load_workbook
+    workbook=load_workbook(BytesIO(response.content),data_only=True)
+    summary=list(workbook['Ringkasan'].values);data=dict(zip(summary[0],summary[1]))
+    assert data['total_hpp']==60000 and data['laba_kotor']==9000 and data['status_hpp']=='Lengkap'
+    assert 'hpp' in next(workbook['Rincian'].values)
+    assert 'Laba kotor' in web.get('/laporan').text
+
+
+def test_hpp_migration_preserves_unknown_history(tmp_path):
+    from sqlalchemy import text as sql_text
+    from app.migrations import migrate_hpp
+    engine=create_engine('sqlite:///'+str(tmp_path/'hpp.db'))
+    with engine.begin() as conn:
+        conn.execute(sql_text('CREATE TABLE products (id INTEGER PRIMARY KEY, harga BIGINT, stok INTEGER)'))
+        conn.execute(sql_text('CREATE TABLE order_lines (id INTEGER PRIMARY KEY, subtotal BIGINT)'))
+        conn.execute(sql_text('INSERT INTO products VALUES (1,70000,8)'))
+        conn.execute(sql_text('INSERT INTO order_lines VALUES (1,140000)'))
+    migrate_hpp(engine);migrate_hpp(engine)
+    with engine.connect() as conn:
+        assert tuple(conn.execute(sql_text('SELECT harga,stok,hpp FROM products')).one())==(70000,8,None)
+        assert tuple(conn.execute(sql_text('SELECT subtotal,hpp FROM order_lines')).one())==(140000,None)
+    engine.dispose()
+
+
+def test_import_required_hpp_missing_and_invalid_cost(store):
+    db,a,_,_,_,_,_=store
+    frame=pd.DataFrame([
+        dict(kode='HPP01',nama='Produk HPP',label='Beras',kategori='Bahan pokok',harga=10000,hpp=6000,stok=5,satuan='pak',_baris=2,_formula=False),
+        dict(kode='HPP02',nama='Produk lama',label='Beras',kategori='Bahan pokok',harga=10000,hpp='',stok=5,satuan='pak',_baris=3,_formula=False),
+        dict(kode='HPP03',nama='Produk gagal',label='Beras',kategori='Bahan pokok',harga=10000,hpp=-1,stok=5,satuan='pak',_baris=4,_formula=False)])
+    result=save_rows(db,frame,a.id);db.commit()
+    assert result['success']==1 and result['failed']==2
+    assert db.scalar(select(Product).where(Product.source_code=='HPP01')).hpp==6000
+    assert db.scalar(select(Product).where(Product.source_code=='HPP02')) is None
+
+
+@pytest.mark.parametrize('cost,percentage,expected',[(3000,25,3800),(3000,20,3600),(3000,15,3500),(1,0,100),(100,0,100),(3333,'12.5',3800)])
+def test_automatic_price_rounds_up_to_100(cost,percentage,expected):
+    from app.pricing import selling_price
+    assert selling_price(cost,percentage)==expected
+
+
+def test_pricing_rejects_invalid_inputs():
+    from app.pricing import selling_price,markup
+    for cost in (None,'',0,-1,'1.2'):
+        with pytest.raises(RuleError):selling_price(cost,10)
+    for value in ('NaN','Infinity',-1,101,'1.001'):
+        with pytest.raises(RuleError):markup(value)
+    with pytest.raises(RuleError):selling_price(1000000000,100)
+
+
+def test_category_markup_reprices_products_but_not_order_prices(web,store):
+    db,a,m,_,p,second,_=store
+    p.hpp=3000;p.label='Beras';db.commit()
+    order=create_order(db,m.id,{str(p.id):1},uuid4().hex);db.commit()
+    csrf=signin(web,True)
+    response=web.post('/kategori/simpan',data={'csrf':csrf,'id':p.category_id,'active':'on','markup_percent':'25'})
+    assert response.status_code==200
+    db.expire_all();assert db.get(Product,p.id).harga==3800 and db.get(Product,second.id).harga==140000
+    assert db.get(Order,order.id).total==70000 and order.lines[0].harga==70000
+    transition(db,order.id,'Dikonfirmasi',a.id);db.commit()
+    assert order.lines[0].hpp==3000
+    # A forged selling price from a browser is ignored.
+    response=web.post('/produk/simpan',data={'csrf':csrf,'id':p.id,'category_id':p.category_id,'nama':p.nama,'label':'Beras','satuan':'pak','hpp':'4000','harga':'1','active':'on'})
+    assert response.status_code==200
+    db.expire_all();assert db.get(Product,p.id).harga==5000 and order.total==70000
+    assert web.post('/produk/simpan',data={'csrf':csrf,'id':p.id,'category_id':p.category_id,'nama':p.nama,'label':'Beras','satuan':'pak','hpp':''}).status_code==400
+    assert web.post('/kategori/simpan',data={'csrf':csrf,'id':p.category_id,'markup_percent':'101'}).status_code==400
+
+
+def test_pricing_migration_keeps_prices_and_custom_percentage(tmp_path):
+    from sqlalchemy import text as sql_text
+    from app.migrations import migrate_pricing
+    engine=create_engine('sqlite:///'+str(tmp_path/'pricing.db'))
+    with engine.begin() as conn:
+        conn.execute(sql_text('CREATE TABLE categories (id INTEGER PRIMARY KEY,nama VARCHAR(100))'))
+        conn.execute(sql_text("INSERT INTO categories VALUES (1,'Bahan pokok'),(2,'Perawatan'),(3,'Makanan ringan'),(4,'Minuman'),(5,'Kesehatan')"))
+        conn.execute(sql_text('CREATE TABLE products (id INTEGER PRIMARY KEY,harga BIGINT)'))
+        conn.execute(sql_text('INSERT INTO products VALUES (1,75000)'))
+    migrate_pricing(engine)
+    with engine.begin() as conn:
+        assert [int(n) for n in conn.scalars(sql_text('SELECT markup_percent FROM categories ORDER BY id'))]==[10,20,25,15,10]
+        conn.execute(sql_text('UPDATE categories SET markup_percent=12 WHERE id=1'))
+    migrate_pricing(engine)
+    with engine.connect() as conn:
+        assert conn.scalar(sql_text('SELECT markup_percent FROM categories WHERE id=1'))==12
+        assert conn.scalar(sql_text('SELECT harga FROM products'))==75000
     engine.dispose()

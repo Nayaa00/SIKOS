@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint, LargeBinary, Index
+from decimal import Decimal
+from sqlalchemy import String, Integer, BigInteger, ForeignKey, Boolean, DateTime, Text, CheckConstraint, UniqueConstraint, LargeBinary, Index, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 from sqlalchemy.dialects.mysql import MEDIUMBLOB
@@ -24,12 +25,13 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nama: Mapped[str] = mapped_column(String(100), unique=True)
     code_prefix: Mapped[str | None] = mapped_column(String(3), unique=True, nullable=True)
+    markup_percent: Mapped[Decimal] = mapped_column(Numeric(5,2),default=lambda ctx: {'Bahan pokok':10,'Perawatan':20,'Makanan ringan':25,'Minuman':15,'Kesehatan':10}.get(ctx.get_current_parameters().get('nama'),15),server_default='15')
     code_counter: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 class Product(Base):
     __tablename__ = 'products'
-    __table_args__ = (CheckConstraint('stok >= 0'), CheckConstraint('harga > 0'))
+    __table_args__ = (CheckConstraint('stok >= 0'), CheckConstraint('harga > 0'),CheckConstraint('hpp IS NULL OR hpp >= 0'))
     id: Mapped[int] = mapped_column(primary_key=True)
     kode: Mapped[str] = mapped_column(String(40), unique=True)
     source_code: Mapped[str | None] = mapped_column(String(40), unique=True, nullable=True)
@@ -38,6 +40,7 @@ class Product(Base):
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'))
     category: Mapped[Category] = relationship()
     harga: Mapped[int] = mapped_column(BigInteger)
+    hpp: Mapped[int | None] = mapped_column(BigInteger,nullable=True)
     stok: Mapped[int] = mapped_column(Integer, default=0)
     satuan: Mapped[str] = mapped_column(String(30))
     deskripsi: Mapped[str] = mapped_column(Text, default='')
@@ -72,6 +75,7 @@ class OrderLine(Base):
     kode: Mapped[str] = mapped_column(String(40))
     nama: Mapped[str] = mapped_column(String(150))
     harga: Mapped[int] = mapped_column(BigInteger)
+    hpp: Mapped[int | None] = mapped_column(BigInteger,nullable=True)
     qty: Mapped[int] = mapped_column(Integer)
     subtotal: Mapped[int] = mapped_column(BigInteger)
 

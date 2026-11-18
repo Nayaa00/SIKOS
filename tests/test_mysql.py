@@ -41,8 +41,10 @@ def mysql_store():
     migrate_product_labels(engine)
     from app.code_migration import migrate_product_codes
     migrate_product_codes(engine)
-    from app.migrations import migrate_sale_payments
+    from app.migrations import migrate_sale_payments,migrate_hpp,migrate_pricing
     migrate_sale_payments(engine)
+    migrate_hpp(engine)
+    migrate_pricing(engine)
     with engine.connect() as connection:
         engines = connection.execute(text(
             'SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES '
@@ -312,3 +314,17 @@ def test_mysql_notification_confirmation_once_and_transaction_rollback(mysql_sto
     with factory() as db:
         assert db.get(Order,oid).status=='Dikonfirmasi'
         assert db.scalar(select(func.count()).select_from(Notification).where(Notification.event_key==f'order:{oid}:Dibatalkan'))==0
+
+
+def test_mysql_hpp_snapshot_concurrent_confirmation(mysql_store):
+    factory,ids=mysql_store
+    with factory() as db:
+        product=db.get(Product,ids[2]);product.hpp=6000
+        order=create_order(db,ids[1],{str(ids[2]):1},uuid4().hex);db.commit();oid=order.id
+    parallel_transitions(factory,[oid,oid],'Dikonfirmasi',ids[0])
+    with factory() as db:
+        line=db.scalar(select(OrderLine).where(OrderLine.order_id==oid));snapshot=line.hpp
+        assert snapshot==6000
+        db.get(Product,ids[2]).hpp=9000;db.commit()
+        transition(db,oid,'Dikonfirmasi',ids[0]);db.commit()
+        assert db.scalar(select(OrderLine.hpp).where(OrderLine.order_id==oid))==6000

@@ -10,7 +10,11 @@ def migrate_product_labels(engine):
     with engine.begin() as conn:
         for name in CATEGORIES:
             if conn.scalar(text('SELECT id FROM categories WHERE nama=:name'), {'name':name}) is None:
-                conn.execute(text('INSERT INTO categories (nama,active) VALUES (:name,1)'), {'name':name})
+                if 'markup_percent' in {c['name'] for c in inspect(engine).get_columns('categories')}:
+                    from .pricing import DEFAULT_MARKUPS
+                    conn.execute(text('INSERT INTO categories (nama,active,markup_percent) VALUES (:name,1,:markup)'),{'name':name,'markup':DEFAULT_MARKUPS.get(name,15)})
+                else:
+                    conn.execute(text('INSERT INTO categories (nama,active) VALUES (:name,1)'), {'name':name})
         for old, target in LEGACY.items():
             old_id = conn.scalar(text('SELECT id FROM categories WHERE nama=:name AND active=1'), {'name':old})
             if old_id is None: continue
@@ -51,3 +55,23 @@ def migrate_notifications(engine):
     # Add only the two feature tables; never modify inventory or existing transactions.
     Notification.__table__.create(engine,checkfirst=True)
     PaymentSubmission.__table__.create(engine,checkfirst=True)
+
+
+def migrate_hpp(engine):
+    # Nullable means unknown; never backfill historical costs from today's product cost.
+    for table in ('products','order_lines'):
+        columns={column['name'] for column in inspect(engine).get_columns(table)}
+        if 'hpp' not in columns:
+            with engine.begin() as conn:
+                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN hpp BIGINT NULL'))
+
+
+def migrate_pricing(engine):
+    columns={column['name'] for column in inspect(engine).get_columns('categories')}
+    if 'markup_percent' not in columns:
+        from .pricing import DEFAULT_MARKUPS
+        with engine.begin() as conn:
+            conn.execute(text('ALTER TABLE categories ADD COLUMN markup_percent NUMERIC(5,2) NOT NULL DEFAULT 15'))
+            for name,value in DEFAULT_MARKUPS.items():
+                conn.execute(text('UPDATE categories SET markup_percent=:value WHERE nama=:name'),{'name':name,'value':value})
+    # Price, HPP and historical order snapshots are deliberately not rewritten.

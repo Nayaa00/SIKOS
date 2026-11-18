@@ -303,3 +303,11 @@
  .featured-card-action { @apply tw:mt-auto tw:border-0 tw:border-t tw:border-solid tw:border-stone-100 tw:pt-4; }
  .featured-card-action .btn { @apply tw:w-full tw:text-xs; }
 }
+
+@layer components {
+ .profit-summary { @apply tw:mb-6 tw:grid tw:grid-cols-1 tw:gap-4 tw:sm:grid-cols-3; }
+ .profit-summary .card { @apply tw:mb-0 tw:min-w-0 tw:p-5; }
+ .profit-value { @apply tw:mt-3 tw:block tw:break-words tw:text-xl tw:font-semibold tw:text-[#24543f]; }
+ .profit-summary small { @apply tw:mt-2 tw:block tw:text-[10px] tw:text-stone-400; }
+ .profit-value.profit-negative { @apply tw:text-red-600; }
+}

@@ -25,6 +25,7 @@
     <h2>{{ p.nama }}</h2>
     <div class="inventory-label">{{ p.label or 'Tanpa label' }}</div>
     <div class="inventory-price">{{ p.harga|rupiah }} <small>/ {{ p.satuan }}</small></div>
+    <div class="inventory-detail"><span>HPP / {{ p.satuan }}</span><strong>{{ p.hpp|rupiah if p.hpp is not none else 'Belum tersedia' }}</strong></div>
     <div class="inventory-detail"><span>Stok tersedia</span><strong class="{% if not p.stok %}stock-empty{% endif %}">{{ p.stok }} {{ p.satuan }}</strong></div>
     <div class="inventory-detail"><span>Status</span><span class="inventory-status {{ 'status-active' if p.active else 'status-archived' }}">{{ 'Aktif' if p.active else 'Diarsipkan' }}</span></div>
     <div class="inventory-actions">

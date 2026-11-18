@@ -320,3 +320,47 @@ sudah masuk luthfi. Branch tujuan adalah Octavian; pian tidak dibuat di remote.
 Hasil pada worktree integrasi: 78 tes lulus dalam 59.64 detik (69 SQLite/HTTP dan 9 MariaDB
 XAMPP), 1 warning deprecation. MySQL 8 belum diuji. Pemeriksaan JavaScript grafik dan
 notifikasi lulus. CSS hasil build yang sudah diverifikasi di folder utama disertakan.
+
+
+## HPP dan laba kotor tahap pertama — 18 November 2026
+
+84 tes lulus dalam 62.35 detik: 74 SQLite/HTTP dan 10 MariaDB XAMPP, 1 warning deprecation.
+MySQL 8 belum diuji. Tes tambahan memeriksa snapshot HPP saat konfirmasi, perubahan HPP
+produk sesudahnya, konfirmasi ulang dan konkurensi MariaDB, pengecualian pembatalan,
+perbedaan null/biaya nol, laba negatif, validasi dan hak akses admin, ekspor HPP/laba,
+kolom HPP impor opsional serta migrasi additive idempoten yang mempertahankan null historis.
+
+Build Tailwind berhasil. Smoke test browser admin: ringkasan omzet/HPP/laba kotor dan
+status Belum lengkap pada laporan transaksi lama tampil, kolom HPP dan harga jual terpisah
+terlihat pada form edit produk. Tidak menyimpan perubahan produk, HPP atau transaksi
+operasional saat smoke test. Migrasi dua kolom nullable sudah dijalankan pada database
+SIKOS lokal. HPP produk dan snapshot lama tidak diisi otomatis. Belum di-push ke GitHub.
+
+## Markup kategori dan pembulatan otomatis — 18 November 2026
+
+93 tes lulus (83 SQLite/HTTP + 10 MariaDB XAMPP), 1 warning deprecation, 59.75 detik.
+MySQL 8 belum diuji. Setelah penyederhanaan header Excel, 16 tes impor/pricing terkait
+juga lulus (6.98 detik). Tes memastikan HPP positif wajib, nominal harga palsu diabaikan,
+pembulatan integer/Decimal, batas markup, repricing kategori dan snapshot pesanan tetap,
+serta migrasi idempoten yang mempertahankan persentase khusus dan harga produk lama.
+Kasus lama yang menerima HPP nol/kosong untuk penyimpanan baru disesuaikan dengan aturan
+baru; snapshot historis nol/null tetap ditangani sebagai sebelumnya.
+
+Smoke test browser admin: kategori menampilkan default 10/20/25/15/10; form tambah produk
+memilih Makanan ringan 25% dan HPP 3000 menampilkan harga otomatis 3800. Tidak menyimpan
+produk, kategori atau transaksi operasional saat smoke test. Syntax product-pricing.js lulus.
+Migrasi markup dijalankan pada database SIKOS lokal; harga lama tidak ditulis ulang.
+Belum di-push ke GitHub.
+
+## Integrasi HPP dan markup ke cipa — 18 November 2026
+
+Dasar integrasi f0933cc (Octavian), yang sudah mencakup riwayat cipa sebelumnya, agar
+fitur notifikasi dan tampilan tetap tersedia. Penambahan: HPP/modal wajib, snapshot saat
+konfirmasi, laporan omzet/HPP/laba kotor, ekspor Excel, persentase markup kategori dan
+pembulatan harga jual ke atas kelipatan Rp100. Harga jual manual diabaikan oleh server.
+
+Instalasi lama perlu menjalankan migrate-hpp dan migrate-pricing, lalu restart server;
+init-db juga mencakup migrasi tersebut. Data historis tidak diberi HPP fiktif dan migrasi
+tidak menulis ulang harga produk lama. Folder kerja utama dan branch main tetap.
+
+Verifikasi worktree cipa: 93 tes lulus dalam 61.96 detik (83 SQLite/HTTP dan 10 MariaDB XAMPP), 1 warning deprecation. MySQL 8 belum diuji. Syntax product-pricing.js dan git diff --check lulus.

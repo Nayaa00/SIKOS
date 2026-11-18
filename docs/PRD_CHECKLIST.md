@@ -188,3 +188,19 @@ memperbarui UI tanpa refresh, dengan autentikasi, kepemilikan dan CSRF. Bukti pe
 anggota dapat diunggah sekali untuk pesanan Dikonfirmasi dan memicu notifikasi admin;
 unggahan tidak membuat lunas. Migrasi additive: migrate-notifications. Notifikasi transaksi
 lama tidak dibuat ulang. Rincian perilaku dan pengujian ada di README/HASIL_UJI.
+
+## Tahap pertama HPP dan laba kotor
+
+HPP produk per unit (opsional), snapshot saat konfirmasi, omzet/total HPP/laba kotor di
+dashboard/laporan admin dan ekspor Excel tersedia. Data tanpa HPP diberi status belum
+lengkap; null tidak dianggap nol, pembatalan dikeluarkan. Impor menerima hpp opsional.
+Harga jual tetap snapshot saat pesan, stok dan empat status pesanan tidak berubah.
+Biaya operasional/laba bersih belum termasuk tahap ini. Detail perilaku ada di README.
+
+## Harga jual kategori dan HPP wajib
+
+Pembaruan: HPP positif wajib pada form produk/impor; menggantikan aturan HPP opsional.
+Harga jual otomatis = HPP ditambah markup kategori lalu dibulatkan ke atas kelipatan Rp100.
+Admin dapat mengedit markup; perubahan menghitung ulang produk ber-HPP, tetap mempertahankan
+snapshot pesanan. Default rekomendasi awal 10/20/25/15/10 untuk lima kategori utama; bukan
+standar resmi pasar. Migrasi migrate-pricing tidak menebak HPP atau menimpa harga lama.

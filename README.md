@@ -290,3 +290,73 @@ Feed, halaman riwayat, mark-read dan gambar bukti selalu dibatasi akun login. An
 bisa membaca/menandai notifikasi atau melihat bukti anggota lain. Admin mendapat salinan
 notifikasi operasional masing-masing: menandai milik satu admin tidak mengubah milik admin
 lain. Request perubahan memakai POST+CSRF. Tidak ada gateway atau fitur QR baru.
+
+## HPP, omzet dan laba kotor (tahap pertama)
+
+Pada database lama, jalankan `venv\Scripts\python.exe -m app.cli migrate-hpp`, lalu restart
+server. Migrasi idempoten hanya menambah kolom nullable hpp pada products dan order_lines,
+tanpa menebak biaya historis, mengubah harga/stok atau menyentuh database proyek lain.
+init-db sudah mencakup migrasi ini untuk instalasi baru maupun yang sudah ada.
+
+Admin mengisi HPP per unit melalui Tambah/Edit Produk, terpisah dari Harga jual per unit.
+Kosong berarti belum diketahui; angka 0 adalah biaya nol yang memang diisi secara eksplisit.
+HPP menerima rupiah bulat 0–1.000.000.000. Kolom hpp opsional pada Excel produk juga didukung;
+file lama tetap dapat diimpor, dan impor tetap tidak menimpa produk/stok yang sudah berjalan.
+
+Saat konfirmasi pertama pesanan, sistem mengunci produk dan menyalin HPP saat itu ke setiap
+baris pesanan. Harga jual tetap memakai snapshot saat anggota membuat pesanan. Perubahan
+HPP produk setelah konfirmasi tidak mengubah laporan transaksi lama; konfirmasi ulang juga
+tidak menimpa snapshot. Seluruh perubahan dan snapshot rollback bersama bila satu barang
+kehabisan stok. Pembatalan membuat Sale tidak valid dan mengecualikan omzet/HPP/labanya.
+
+Dashboard dan Laporan admin menampilkan, sesuai periode harian/mingguan/bulanan/tahunan:
+- Omzet = jumlah harga jual snapshot × unit terjual.
+- Total HPP = jumlah HPP snapshot × unit terjual.
+- Laba kotor = omzet − total HPP, sebelum biaya operasional; laba negatif tetap ditampilkan.
+
+Pencatatan mengikuti aturan laporan SIKOS: transaksi valid sejak Dikonfirmasi, berdasarkan
+waktu konfirmasi WIB, termasuk Selesai. Bukan laporan arus kas berdasarkan tanggal bayar.
+Jika ada unit dengan snapshot HPP belum diketahui, total HPP dan laba kotor periode ditandai
+Belum lengkap. Biaya/laba dari bagian data yang lengkap disajikan terpisah, bersama jumlah
+unit belum ber-HPP. Transaksi lama tetap kosong meskipun HPP produk baru saja diisi.
+Tidak ada backfill otomatis. HPP dan laba hanya ditampilkan di halaman/ekspor khusus admin.
+
+Excel laporan menambah hpp, total_hpp dan laba_kotor pada Rincian. Ringkasan memuat omzet,
+total HPP/laba kotor (kosong bila belum lengkap), status kelengkapan, jumlah unit tanpa HPP,
+serta HPP/laba yang sudah tercatat. Angka kosong tidak diganti nol. Tidak ada biaya operasional
+atau perhitungan laba bersih pada tahap ini.
+
+## Harga jual otomatis dari markup kategori — pembaruan 18 November 2026
+
+Harga beli/HPP sekarang wajib positif pada penyimpanan produk dan impor. Aturan ini
+menggantikan HPP opsional pada tahap awal di atas; snapshot historis null/0 tetap disimpan.
+Harga jual dikalkulasi server, tidak menerima angka harga jual manual dari browser/Excel.
+Persentase adalah MARKUP dari HPP (bukan margin terhadap harga jual), 0–100% dengan maksimal
+2 angka desimal. Hasil selalu dibulatkan ke ATAS ke kelipatan Rp100 memakai Decimal:
+ceil(HPP × (1 + markup/100) / 100) × 100. Rp3.750 menjadi Rp3.800; Rp3.800 tetap Rp3.800.
+
+Setelan awal yang dapat diedit admin:
+Bahan pokok 10%; Perawatan 20%; Makanan ringan 25%; Minuman 15%; Kesehatan 10%.
+Kategori baru lainnya default 15%. Angka ini rekomendasi konfigurasi awal SIKOS, bukan
+standar resmi atau hasil survei representatif tiap kategori. Studi toko sembako menunjukkan
+markup memang bervariasi antarproduk (https://journal.untar.ac.id/index.php/PSERINA/article/download/17580/9558).
+Panduan Bank Raya mendukung pendekatan harga beli ditambah persentase keuntungan serta
+perlunya memeriksa persaingan harga (https://bankraya.co.id/articles/insights/detail/strategi-sukses-mengelola-warung-sembako).
+Admin tetap menyesuaikan harga terhadap kondisi pemasok dan pasar setempat.
+
+Admin mengubah persentase pada menu Kategori. Perubahan markup menghitung ulang harga jual
+produk ber-HPP positif di kategori tersebut secara atomik. Lock category→product dipakai
+bersama penyimpanan produk untuk menjaga konsistensi. Form produk menampilkan pratinjau,
+namun angka final dihitung ulang di server. Anggota hanya melihat harga jual, dan snapshot
+harga jual pesanan yang sudah dibuat tidak diubah oleh repricing kategori.
+
+Migrasi lama: `venv\Scripts\python.exe -m app.cli migrate-pricing`, lalu restart.
+Migrasi additive mengisi default persentase ketika kolom baru ditambahkan; menjalankannya
+ulang tidak mereset persentase khusus. Migrasi tidak menebak HPP atau menghitung ulang harga
+produk lama. Produk lama mengikuti formula saat diedit/disimpan dengan HPP atau saat markup
+kategorinya diubah; produk tanpa HPP tetap perlu dilengkapi oleh admin. Tidak mengubah stok.
+
+Excel produk memerlukan kode,nama,kategori,stok,satuan, serta hpp positif pada setiap baris.
+Kolom harga tidak diperlukan; jika masih ada, nilainya diabaikan. Template baru menyediakan
+hpp dan tidak meminta harga manual. Baris tanpa HPP dilaporkan gagal, bukan memakai modal
+fiktif. Produk berkode sama tetap ditolak tanpa menimpa stok/harga yang berjalan.

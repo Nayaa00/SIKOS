@@ -23,6 +23,7 @@ from .product_images import product_image, default_product_image, valid_product_
 from .product_codes import next_product_code, choose_prefix
 from .analytics import analyze
 from .taxonomy import CATEGORIES, category_name
+from .pricing import selling_price, markup, DEFAULT_MARKUPS
 
 ROOT=Path(__file__).resolve().parent
 app=FastAPI(title='SIKOS — Koperasi Sejahtera',version='1.0.0')
@@ -298,17 +299,24 @@ async def category_save(request:Request,user:User=Depends(admin),db:Session=Depe
             return go('/kategori',request,'Nama kategori sudah tersedia. Tidak ada kategori duplikat yang ditambahkan.')
         used=set(db.scalars(select(Category.code_prefix).where(Category.code_prefix.is_not(None))))
         prefix=choose_prefix(name,used,form.get('code_prefix',''))
-        category=Category(nama=name,code_prefix=prefix,code_counter=0,active=form.get('active')=='on')
+        category=Category(nama=name,code_prefix=prefix,code_counter=0,active=form.get('active')=='on',markup_percent=markup(form.get('markup_percent',DEFAULT_MARKUPS.get(name,15))))
         db.add(category)
         try:db.commit()
         except IntegrityError:
             db.rollback()
             return go('/kategori',request,'Nama kategori atau awalan kode sudah digunakan. Periksa kembali.')
         return go('/kategori',request,'Kategori baru berhasil ditambahkan.')
-    category=db.get(Category,integer(form['id'],'ID'))
+    category=db.scalar(select(Category).where(Category.id==integer(form['id'],'ID')).with_for_update())
     if category is None:raise HTTPException(404,'Kategori tidak ditemukan.')
+    if 'markup_percent' in form:
+        percentage=markup(form['markup_percent'])
+        if percentage!=category.markup_percent:
+            products=db.scalars(select(Product).where(Product.category_id==category.id).order_by(Product.id).with_for_update()).all()
+            prices=[(product,selling_price(product.hpp,percentage)) for product in products if product.hpp is not None and product.hpp>0]
+            for product,price in prices:product.harga=price
+            category.markup_percent=percentage
     category.active=form.get('active')=='on'
-    db.commit();return go('/kategori',request,'Status kategori disimpan.')
+    db.commit();return go('/kategori',request,'Kategori disimpan. Harga produk ber-HPP mengikuti markup; snapshot pesanan tetap.')
 
 @app.post('/kategori/{category_id}/hapus')
 async def category_delete(category_id:int,request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
@@ -365,9 +373,10 @@ def product_code_preview(category_id:int,product_id:int|None=None,user:User=Depe
 async def product_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):
     form=await request.form();check_csrf(request,form)
     product_id=form.get('id')
+    # Category -> product lock order is shared with category repricing.
+    category=db.scalar(select(Category).where(Category.id==integer(form.get('category_id'),'Kategori')).with_for_update())
     product=db.scalar(select(Product).where(Product.id==integer(product_id,'ID')).with_for_update()) if product_id else Product(stok=0)
     if product is None:raise HTTPException(404,'Produk tidak ditemukan.')
-    category=db.get(Category,integer(form.get('category_id'),'Kategori'))
     if category is None or not category.active:raise RuleError('Pilih kategori yang aktif.')
     if not product_id or product.category_id!=category.id:
         product.kode=next_product_code(db,category.id)
@@ -375,7 +384,9 @@ async def product_save(request:Request,user:User=Depends(admin),db:Session=Depen
     chosen_label=text(form.get('label'),'Label',100)
     if chosen_label not in product_labels(db):raise RuleError('Pilih label yang tersedia pada dropdown.')
     product.label=chosen_label
-    product.category_id=category.id;product.harga=integer(form.get('harga'),'Harga')
+    product.category_id=category.id
+    product.hpp=integer(form.get('hpp',product.hpp),'Harga beli / HPP')
+    product.harga=selling_price(product.hpp,category.markup_percent)
     product.satuan=text(form.get('satuan'),'Satuan',30)
     product.deskripsi=str(form.get('deskripsi','')).strip()[:5000]
     image=str(form.get('gambar','')).strip()
@@ -756,10 +767,10 @@ def report_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_
     analysis=analyze(db,kind,day)
     if request.query_params.get('export')=='xlsx':
         buffer=BytesIO()
-        frame=pd.DataFrame(analysis['rows'],columns=['pesanan','anggota','tanggal','kode','produk','jumlah','harga','subtotal'])
+        frame=pd.DataFrame(analysis['rows'],columns=['pesanan','anggota','tanggal','kode','produk','jumlah','harga','subtotal','hpp','total_hpp','laba_kotor'])
         with pd.ExcelWriter(buffer,engine='openpyxl') as writer:
             frame.to_excel(writer,index=False,sheet_name='Rincian')
-            pd.DataFrame([{'periode':kind,'tanggal_acuan':day,'transaksi':analysis['transactions'],'unit':analysis['units'],'penjualan':analysis['total']}]).to_excel(writer,index=False,sheet_name='Ringkasan')
+            pd.DataFrame([{'periode':kind,'tanggal_acuan':day,'transaksi':analysis['transactions'],'unit':analysis['units'],'penjualan':analysis['total'],'total_hpp':analysis['total_hpp'],'laba_kotor':analysis['gross_profit'],'unit_hpp_belum_tersedia':analysis['missing_cost_units'],'hpp_tercatat':analysis['known_cost'],'laba_kotor_tercatat':analysis['known_profit'],'status_hpp':'Lengkap' if analysis['cost_complete'] else 'HPP belum lengkap'}]).to_excel(writer,index=False,sheet_name='Ringkasan')
             for sheet in writer.book:
                 for row in sheet:
                     for cell in row:
@@ -775,7 +786,7 @@ def import_page(request:Request,user:User=Depends(admin)):
 @app.get('/impor/template')
 def import_template(user:User=Depends(admin)):
     buffer=BytesIO()
-    pd.DataFrame([{'kode':'IMP001','nama':'Beras premium 5 kg','label':'Beras','kategori':'Bahan pokok','harga':75000,'stok':10,'satuan':'karung','deskripsi':'Contoh data'}]).to_excel(buffer,index=False,engine='openpyxl')
+    pd.DataFrame([{'kode':'IMP001','nama':'Beras premium 5 kg','label':'Beras','kategori':'Bahan pokok','hpp':65000,'stok':10,'satuan':'karung','deskripsi':'Contoh data'}]).to_excel(buffer,index=False,engine='openpyxl')
     return Response(buffer.getvalue(),media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="template_produk_sikos.xlsx"'})
 
 @app.post('/impor')
