@@ -34,5 +34,22 @@ services:
       timeout: 6s
       retries: 5
       start_period: 30s
+  db-viewer:
+    image: phpmyadmin/phpmyadmin@sha256:95e01f723b5e55fabf16d0473f1df2354c4c6352b35902b51d6a6245e074aee4
+    profiles: [tools]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: sikos_browser
+      PMA_PASSWORD: ${SIKOS_DB_VIEWER_PASSWORD:-}
+      PMA_VERBOSE: SIKOS Docker
+    ports:
+      - "127.0.0.1:8082:80"
+    volumes:
+      - ./docker/db-viewer.php:/etc/phpmyadmin/config.user.inc.php:ro
 volumes:
   sikos_mysql:

@@ -424,3 +424,9 @@ Verifikasi worktree cipa: 101 tes lulus dalam 82.53 detik (89 SQLite/HTTP + 12 M
 - Restore backup database XAMPP ke database Docker baru berhasil; jumlah baris 11 tabel cocok. CHECK bernama sama diberi nama unik untuk kompatibilitas MariaDB/MySQL.
 - Compose web/db healthy. Halaman login HTTPS publik HTTP 200, cookie Secure, dan tampilan login diperiksa melalui browser. Alur login dengan akun asli belum diuji manual di alamat publik.
 - Unduhan 8.4 gagal karena TLS timeout/EOF; runtime percobaan memakai image lokal MySQL 9.4.0 dipatok digest. Bukan deployment hosting permanen.
+
+## Finalisasi main (19 November 2026)
+- Seluruh 102 tes lulus pada worktree main: 90 tes aplikasi/SQLite dan 12 tes MariaDB XAMPP pada database khusus pengujian. Ini bukan pengulangan tes MySQL Docker; 12 tes MySQL 9.4 Docker sebelumnya juga lulus sebagaimana catatan deployment.
+- Antarmuka database Docker lokal http://127.0.0.1:8082 memakai akun sikos_browser dengan SELECT dan SHOW VIEW pada sikos.*; koneksi dan hak baca-saja diverifikasi.
+- Docker Compose lolos validasi dengan profil tools; konfigurasi PHP lolos lint dan tampilan tabel phpMyAdmin Docker diperiksa melalui browser.
+- Pemindaian nilai konfigurasi privat pada file baru lolos. File .env, .env.docker, dump database, backup dan executable lokal tidak ikut commit.

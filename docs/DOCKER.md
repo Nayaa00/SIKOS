@@ -64,3 +64,9 @@ Image web berhasil dibangun dengan requirements.lock. Tes Linux/container: 90 lu
 Karena unduhan MySQL 8.4 berulang kali timeout/EOF, deployment percobaan lokal memakai image MySQL 9.4.0 yang sudah tersedia dan dipatok digest melalui SIKOS_MYSQL_IMAGE di .env.docker. Container proyek lain tidak digunakan. Default Compose untuk instalasi baru tetap mysql:8.4. Jangan mengganti image database ke 8.4 dengan volume 9.4 yang sama; perpindahan versi memerlukan database/volume baru dan uji pemulihan SQL yang sesuai.
 
 Tunnel sementara dijalankan terpisah di Windows. Docker restart tidak otomatis membuat tunnel. Jalankan scripts\public.cmd untuk membuat link baru setelah laptop dihidupkan kembali. Jangan menjalankannya dua kali jika tunnel sebelumnya masih aktif.
+
+## Antarmuka database Docker lokal
+Buka http://127.0.0.1:8082/ untuk phpMyAdmin khusus SIKOS Docker. Ini berbeda dari phpMyAdmin XAMPP di http://127.0.0.1/phpmyadmin/. Identitas server ditandai SIKOS Docker (data aplikasi port 8002).
+Akun sikos_browser hanya memiliki SELECT dan SHOW VIEW pada sikos.*. Password acak disimpan pada SIKOS_DB_VIEWER_PASSWORD dalam .env.docker dan tidak ditampilkan. Antarmuka hanya terikat 127.0.0.1:8082 dan tidak diarahkan melalui tunnel publik. Perubahan data dilakukan melalui aplikasi SIKOS.
+Untuk instalasi baru, jalankan python scripts/init-db-viewer.py setelah database Docker sehat. Lalu: docker compose --env-file .env.docker --profile tools up -d db-viewer . Profil tools bersifat opsional. Image phpMyAdmin lokal yang diuji dipatok digest agar tidak mengubah container proyek lain.
+Verifikasi 19 November 2026: koneksi akun baca-saja berhasil, jumlah anggota 4, config PHP lolos lint, HTTP 200, tampilan tabel diperiksa melalui browser. MySQL dan aplikasi SIKOS tetap berjalan.
