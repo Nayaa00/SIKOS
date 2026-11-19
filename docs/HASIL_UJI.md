@@ -430,3 +430,9 @@ Verifikasi worktree cipa: 101 tes lulus dalam 82.53 detik (89 SQLite/HTTP + 12 M
 - Antarmuka database Docker lokal http://127.0.0.1:8082 memakai akun sikos_browser dengan SELECT dan SHOW VIEW pada sikos.*; koneksi dan hak baca-saja diverifikasi.
 - Docker Compose lolos validasi dengan profil tools; konfigurasi PHP lolos lint dan tampilan tabel phpMyAdmin Docker diperiksa melalui browser.
 - Pemindaian nilai konfigurasi privat pada file baru lolos. File .env, .env.docker, dump database, backup dan executable lokal tidak ikut commit.
+
+## Perbaikan Terjual kumulatif pada riwayat stok
+- Kolom Terjual menampilkan akumulasi penjualan sampai setiap peristiwa audit, bukan hanya kuantitas satu pesanan. Pengembalian stok dari pembatalan mengurangi akumulasi tersebut.
+- Perhitungan mencakup seluruh riwayat sebelum membatasi tampilan ke 300 baris terbaru dan tidak mengubah data stok/transaksi yang tersimpan.
+- Dua tes regresi SQLite lulus, termasuk riwayat lebih dari 300 baris, koreksi manual dan pembatalan. Ini bukan pengujian ulang MySQL.
+- Penambahan/pengeluaran stok manual tetap memengaruhi Stok Sesudah dan tercatat dalam Keterangan; Stok Awal adalah stok pertama produk.

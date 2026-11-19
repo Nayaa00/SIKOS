@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy import select, func, or_, update
+from sqlalchemy import select, func, or_, update, case
 from sqlalchemy.orm import Session, selectinload, joinedload, object_session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from .db import get_db
@@ -414,7 +414,10 @@ def stock_page(request:Request,user:User=Depends(admin),db:Session=Depends(get_d
     first_ids=select(func.min(StockMovement.id)).where(StockMovement.product_id.in_(ids)).group_by(StockMovement.product_id)
     first_movements=db.scalars(select(StockMovement).where(StockMovement.id.in_(first_ids))).all() if ids else []
     initial_stocks={m.product_id:(m.after if m.delta>=0 and not m.order_id else m.after-m.delta) for m in first_movements}
-    return page(request,'stock.html',user=user,products=db.scalars(select(Product).order_by(Product.nama)).all(),movements=movements,initial_stocks=initial_stocks)
+    # Window over ALL history before selecting the latest visible audit rows.
+    sold_history=select(StockMovement.id.label('movement_id'),func.sum(case((StockMovement.order_id.is_not(None),-StockMovement.delta),else_=0)).over(partition_by=StockMovement.product_id,order_by=StockMovement.id,rows=(None,0)).label('sold')).where(StockMovement.product_id.in_(ids)).subquery()
+    cumulative_sold=dict(db.execute(select(sold_history.c.movement_id,sold_history.c.sold).where(sold_history.c.movement_id.in_([m.id for m in movements]))).all()) if movements else {}
+    return page(request,'stock.html',user=user,products=db.scalars(select(Product).order_by(Product.nama)).all(),movements=movements,initial_stocks=initial_stocks,cumulative_sold=cumulative_sold)
 
 @app.post('/stok')
 async def stock_save(request:Request,user:User=Depends(admin),db:Session=Depends(get_db)):

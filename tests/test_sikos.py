@@ -941,8 +941,8 @@ def test_stock_original_initial_quantity_and_sold_only_on_confirmation(web,store
         if 'Beras 5kg' not in row:continue
         assert '<td>20</td>' in row
         if 'Konfirmasi pesanan' in row:assert '<td>20</td><td>2</td><td>18</td>' in row
-        if 'Pembelian pemasok' in row:assert '<td>20</td><td>0</td><td>23</td>' in row
-        if 'Barang rusak' in row:assert '<td>20</td><td>0</td><td>22</td>' in row
+        if 'Pembelian pemasok' in row:assert '<td>20</td><td>2</td><td>23</td>' in row
+        if 'Barang rusak' in row:assert '<td>20</td><td>2</td><td>22</td>' in row
         if 'Pembatalan pesanan' in row:assert '<td>20</td><td>0</td><td>24</td>' in row
     assert db.get(Product,product.id).stok==24
 
@@ -1384,3 +1384,24 @@ def test_stylesheet_version_changes_after_build(web,tmp_path,monkeypatch):
     os.utime(css,ns=(next_time,next_time))
     second=web.get('/login').text
     assert re.search(r'/static/tailwind.css\?v=(\d+)',second).group(1)!=version
+
+
+def test_stock_cumulative_sold_includes_history_beyond_display_limit(web,store):
+    db,admin,member,_,product,_,_=store
+    product.stok=0;movement(db,product,18,admin.id,'Stok awal produk manual');db.commit()
+    for quantity in (1,2,3):
+        order=create_order(db,member.id,{str(product.id):quantity},uuid4().hex)
+        transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    for index in range(300):
+        movement(db,product,1 if index%2==0 else -1,admin.id,'Koreksi manual')
+    db.commit()
+    order=create_order(db,member.id,{str(product.id):12},uuid4().hex)
+    transition(db,order.id,'Dikonfirmasi',admin.id);db.commit()
+    signin(web,True);response=web.get('/stok')
+    assert response.status_code==200
+    assert '<td>18</td><td>18</td><td>0</td>' in response.text
+    assert db.get(Product,product.id).stok==0
+    transition(db,order.id,'Dibatalkan',admin.id);db.commit()
+    response=web.get('/stok')
+    assert '<td>18</td><td>6</td><td>12</td>' in response.text
+    assert db.get(Product,product.id).stok==12
